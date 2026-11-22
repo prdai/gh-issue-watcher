@@ -35,6 +35,7 @@ defaults:
   ai:
     enabled: true
     model: deepseek-v4.1-flash
+    maxPerRun: 25
   notify:
     to: go2ranuga@gmail.com
     from: issues@prdai.dev
@@ -56,7 +57,9 @@ watchers:
 | `interest` | no | What counts as relevant. Falls back to `defaults.interest` |
 | `notify` | no | Per-watcher override of the recipient and sender |
 
-The AI gate only runs on issues that did not match a label, because a label hit already notifies. This keeps token spend proportional to unmatched volume.
+`defaults.ai.maxPerRun` caps AI checks per repo per run.
+
+The AI gate only runs on issues that did not match a label, because a label hit already notifies. This keeps token spend proportional to unmatched volume. `maxPerRun` bounds the cost of a busy repo; the rest of the window is deferred to the next run instead of being dropped.
 
 ## Setup
 
@@ -89,7 +92,7 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 | Action | Command |
 | --- | --- |
 | Validate and upload config | `bun run sync-config` |
-| Dry-run the config parser | `bun run sync-config --check` |
+| Dry-run the config parser | `bun run check-config` |
 | Trigger a run now | `curl -X POST https://<worker-url>/run -H "Authorization: Bearer $RUN_TOKEN"` |
 | Inspect KV cursors | `wrangler kv key get cursor:facebook/react --binding CONFIG --remote` |
 | Tail logs | `wrangler tail` |
@@ -99,7 +102,8 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 - Cursor semantics are "created since the previous run". Edits and comments to existing issues are not picked up.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
-- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line. The cursor still advances.
+- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line. The repo cursor does not advance, so the issue is retried next run.
+- AI-rejected issues are recorded as processed. They are not re-checked, which keeps spend flat while a cursor is behind.
 - Dedupe keys expire after 30 days. The same issue is never emailed twice while the key is live.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 
@@ -115,7 +119,9 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 ```
 src/
   index.ts      scheduled handler and manual trigger
-  config.ts     watchers.yaml schema, validation, KV load
+  run.ts        one run: collect, deliver, settle state
+  config.ts     watchers.yaml schema and defaults
+  state.ts      KV config load, cursors, dedupe keys
   github.ts     issue search client
   match.ts      label matching and window arithmetic
   ai.ts         relevance gate
@@ -123,9 +129,13 @@ src/
   email.ts      send_email wrapper
 scripts/
   sync-config.ts
+  config-file.ts
 test/
+.github/workflows/ci.yml
 ```
 
-## Status
+Tests use a Map-backed KV fake and a stub `fetch`, so they exercise the real run path without network access.
 
-Scaffolding in progress. The README is the first commit; the Worker, tests, and deploy workflow land in the draft PR.
+## License
+
+Unlicensed, private repository.

@@ -1,0 +1,26 @@
+defaults:
+  ai:
+    enabled: true
+    model: deepseek-v4.1-flash
+    maxPerRun: 25
+  notify:
+    to: go2ranuga@gmail.com
+    from: issues@prdai.dev
+
+watchers:
+  - repo: honojs/hono
+    labels: ["bug", "good first issue"]
+    interest: |
+      Bugs in routing, middleware, or runtime adapters. Ignore documentation
+      fixes and questions about other frameworks.
+
+  - repo: cloudflare/workers-sdk
+    labels: ["good first issue"]
+    interest: |
+      Bugs in wrangler, workerd bindings, or local development behavior.
+
+  - repo: oven-sh/bun
+    labels: ["bug"]
+    interest: |
+      Runtime, bundler, or package manager correctness bugs. Ignore feature
+      requests and performance comparisons with other runtimes.

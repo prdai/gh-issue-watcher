@@ -95,7 +95,12 @@ async function collect(
       aiChecks++;
 
       try {
-        const verdict = await judgeIssue(env, { issue, interest: watcher.interest, model: watcher.model });
+        const verdict = await judgeIssue(env, {
+          issue,
+          interest: watcher.interest,
+          model: watcher.model,
+          session: `gh-issue-watcher:${watcher.repo}`,
+        });
         result.processed.push(issue.number);
         if (verdict.relevant) {
           entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });

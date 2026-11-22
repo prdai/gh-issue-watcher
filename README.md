@@ -23,7 +23,7 @@ An issue notifies when it matches a watched label or the AI marks it relevant.
 | Config | `watchers.yaml` in the repo, synced to KV on deploy | Reviewable in PRs, no dashboard editing, one source of truth |
 | State | Workers KV | Cursor per repo plus dedupe keys with TTL |
 | GitHub access | Fine-grained PAT stored as a Worker secret | Raises the search API limit from 10 to 30 requests per minute and supports private repos |
-| AI gate | OpenCode Go, OpenAI-compatible API | Cheap per-token pricing, one key, model selectable per watcher |
+| AI gate | AI SDK on the OpenCode Go endpoint | Typed `Output.object` schema, cheap per-token pricing, model selectable per watcher |
 | Email | `send_email` binding | Native, free to verified destination addresses, no third-party signup |
 
 ## Configuration
@@ -106,6 +106,12 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 - AI-rejected issues are recorded as processed. They are not re-checked, which keeps spend flat while a cursor is behind.
 - Dedupe keys expire after 30 days. The same issue is never emailed twice while the key is live.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
+
+## OpenCode Go client requirements
+
+OpenCode Go asks clients to identify themselves and send a stable session id for routing. The Worker sends `user-agent: gh-issue-watcher/0.1` and one `x-opencode-session` per repo (`gh-issue-watcher:<owner/name>`).
+
+The plan is intended for coding-agent traffic and is monitored for abuse. This workload is low-volume issue triage, not a coding agent. Confirm that fits the plan terms before relying on it in production; a dedicated inference provider is the fallback if it does not.
 
 ## Cost
 

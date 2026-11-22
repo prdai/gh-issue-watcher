@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { renderDigest, type DigestEntry } from "../src/digest";
-import { makeIssue } from "./fakes";
+import { renderDigest, type DigestEntry } from "../src/digest.ts";
+import { makeIssue } from "./fakes.ts";
 
 const now = new Date("2026-11-22T05:00:00Z");
 

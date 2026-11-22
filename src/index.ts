@@ -1,5 +1,5 @@
-import { run } from "./run";
-import type { Env } from "./env";
+import { run } from "./run.ts";
+import type { Env } from "./env.ts";
 
 export default {
   async scheduled(controller, env, ctx) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseConfig, resolveWatchers } from "../src/config";
-import { parseWatchersYaml } from "../scripts/config-file";
+import { parseConfig, resolveWatchers } from "../src/config.ts";
+import { parseWatchersYaml } from "../scripts/config-file.ts";
 
 const base = `
 defaults:

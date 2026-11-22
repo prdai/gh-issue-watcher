@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { ZodError } from "zod";
-import { parseWatchersYaml } from "./config-file";
+import { parseWatchersYaml } from "./config-file.ts";
 
 const CONFIG_PATH = resolve(process.cwd(), "watchers.yaml");
 const CHECK = process.argv.includes("--check");

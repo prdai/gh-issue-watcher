@@ -1,4 +1,4 @@
-import type { Issue } from "./github";
+import type { Issue } from "./github.ts";
 
 export const INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
 

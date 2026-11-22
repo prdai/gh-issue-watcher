@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GitHubError, searchIssuesSince } from "../src/github";
-import { githubItem, jsonResponse, makeIssue, testEnv } from "./fakes";
+import { GitHubError, searchIssuesSince } from "../src/github.ts";
+import { githubItem, jsonResponse, makeIssue, testEnv } from "./fakes.ts";
 
 const window = {
   repo: "owner/repo",

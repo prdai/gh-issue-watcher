@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Env } from "./env";
+import type { Env } from "./env.ts";
 
 const GITHUB_API = "https://api.github.com";
 const GITHUB_API_VERSION = "2022-11-28";

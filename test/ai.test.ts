@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AiError, buildPrompt, judgeIssue, parseVerdict } from "../src/ai";
-import { completion, makeIssue, testEnv } from "./fakes";
+import { AiError, buildPrompt, judgeIssue, parseVerdict } from "../src/ai.ts";
+import { completion, makeIssue, testEnv } from "./fakes.ts";
 
 const issue = makeIssue(7, { title: "Crash on startup", body: "x".repeat(10000), labels: ["bug"] });
 

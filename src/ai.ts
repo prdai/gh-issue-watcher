@@ -1,6 +1,6 @@
 import { z } from "zod";
-import type { Env } from "./env";
-import type { Issue } from "./github";
+import type { Env } from "./env.ts";
+import type { Issue } from "./github.ts";
 
 const OPENCODE_BASE_URL = "https://opencode.ai/inference/go/openai/v1";
 const MAX_BODY_CHARS = 4000;

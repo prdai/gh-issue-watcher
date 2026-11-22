@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { INITIAL_LOOKBACK_MS, matchesAnyLabel, windowStart } from "../src/match";
-import { makeIssue } from "./fakes";
+import { INITIAL_LOOKBACK_MS, matchesAnyLabel, windowStart } from "../src/match.ts";
+import { makeIssue } from "./fakes.ts";
 
 describe("matchesAnyLabel", () => {
   const issue = makeIssue(1, { labels: ["Status: Unconfirmed", "Bug"] });

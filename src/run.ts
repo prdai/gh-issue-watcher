@@ -1,11 +1,11 @@
-import { judgeIssue } from "./ai";
-import { maxAiChecks, resolveWatchers, type Config, type ResolvedWatcher } from "./config";
-import { renderDigest, type DigestEntry, type DigestFailure } from "./digest";
-import { sendEmail } from "./email";
-import type { Env } from "./env";
-import { searchIssuesSince, type Issue } from "./github";
-import { windowStart } from "./match";
-import { getCursor, isSeen, loadConfig, markSeen, putCursor } from "./state";
+import { judgeIssue } from "./ai.ts";
+import { maxAiChecks, resolveWatchers, type Config, type ResolvedWatcher } from "./config.ts";
+import { renderDigest, type DigestEntry, type DigestFailure } from "./digest.ts";
+import { sendEmail } from "./email.ts";
+import type { Env } from "./env.ts";
+import { searchIssuesSince, type Issue } from "./github.ts";
+import { windowStart } from "./match.ts";
+import { getCursor, isSeen, loadConfig, markSeen, putCursor } from "./state.ts";
 
 export interface RunSummary {
   ranAt: string;

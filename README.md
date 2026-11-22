@@ -63,7 +63,7 @@ The AI gate only runs on issues that did not match a label, because a label hit 
 
 ## Setup
 
-Prerequisites: a Cloudflare account with a zone on Email Routing, a verified destination address, `bun`, and `wrangler` logged in.
+Prerequisites: a Cloudflare account with a zone on Email Routing, a verified destination address, Node 22.18 or newer for the config scripts, Bun for dependency install, and `wrangler` logged in.
 
 ```sh
 bun install

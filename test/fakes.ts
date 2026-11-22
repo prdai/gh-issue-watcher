@@ -1,5 +1,5 @@
-import type { Env } from "../src/env";
-import type { Issue } from "../src/github";
+import type { Env } from "../src/env.ts";
+import type { Issue } from "../src/github.ts";
 
 export interface SentEmail {
   to: string;

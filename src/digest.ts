@@ -1,4 +1,4 @@
-import type { Issue } from "./github";
+import type { Issue } from "./github.ts";
 
 export interface DigestEntry {
   repo: string;

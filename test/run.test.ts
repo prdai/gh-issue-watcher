@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { run } from "../src/run";
-import { WATCHER_CONFIG, completion, githubItem, jsonResponse, makeIssue, testEnv, type TestEnv } from "./fakes";
-import type { Issue } from "../src/github";
+import { run } from "../src/run.ts";
+import { WATCHER_CONFIG, completion, githubItem, jsonResponse, makeIssue, testEnv, type TestEnv } from "./fakes.ts";
+import type { Issue } from "../src/github.ts";
 
 const now = new Date("2026-11-22T05:00:00Z");
 

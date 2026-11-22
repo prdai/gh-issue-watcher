@@ -1,5 +1,5 @@
-import { parseConfig, type Config } from "./config";
-import type { Env } from "./env";
+import { parseConfig, type Config } from "./config.ts";
+import type { Env } from "./env.ts";
 
 const CONFIG_KEY = "config:watchers";
 const CURSOR_PREFIX = "cursor:";

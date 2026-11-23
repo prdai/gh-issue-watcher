@@ -92,7 +92,6 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 | Action | Command |
 | --- | --- |
 | Validate and upload config | `bun run sync-config` |
-| Dry-run the config parser | `bun run check-config` |
 | Trigger a run now | `curl -X POST https://<worker-url>/run -H "Authorization: Bearer $RUN_TOKEN"` |
 | Inspect KV cursors | `wrangler kv key get cursor:facebook/react --binding CONFIG --remote` |
 | Tail logs | `wrangler tail` |

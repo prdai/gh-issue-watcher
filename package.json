@@ -7,8 +7,7 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sync-config": "bun scripts/sync-config.ts",
-    "check-config": "bun scripts/sync-config.ts --check"
+    "sync-config": "bun scripts/sync-config.ts"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3",

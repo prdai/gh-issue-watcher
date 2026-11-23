@@ -14,7 +14,7 @@ afterEach(() => {
 });
 
 describe("searchIssuesSince", () => {
-  it("builds the search query and normalizes labels", async () => {
+  it("builds a bounded created range and normalizes labels", async () => {
     const fetchMock = vi.fn(async () =>
       jsonResponse({ total_count: 1, items: [githubItem(makeIssue(3, { labels: ["bug", "help wanted"] }))] }),
     );
@@ -37,7 +37,7 @@ describe("searchIssuesSince", () => {
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(url.searchParams.get("q")).toBe(
-      "repo:owner/repo is:issue created:>=2026-11-22T04:00:00Z created:<2026-11-22T05:00:00Z",
+      "repo:owner/repo is:issue created:2026-11-22T04:00:00Z..2026-11-22T05:00:00Z",
     );
     expect(url.searchParams.get("sort")).toBe("created");
     expect(init.headers).toMatchObject({ authorization: "Bearer gh-token" });

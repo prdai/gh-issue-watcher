@@ -67,7 +67,7 @@ export async function searchIssuesSince(env: Env, window: SearchWindow): Promise
 }
 
 async function searchPage(window: SearchWindow, page: number, token: string): Promise<z.infer<typeof issueSchema>[]> {
-  const query = `repo:${window.repo} is:issue created:>=${queryTime(window.since)} created:<${queryTime(window.until)}`;
+  const query = `repo:${window.repo} is:issue created:${queryTime(window.since)}..${queryTime(window.until)}`;
   const url = new URL(`${GITHUB_API}/search/issues`);
   url.searchParams.set("q", query);
   url.searchParams.set("sort", "created");

@@ -7,11 +7,8 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "sync-config": "node scripts/sync-config.ts",
-    "check-config": "node scripts/sync-config.ts --check"
-  },
-  "engines": {
-    "node": ">=22.18"
+    "sync-config": "bun scripts/sync-config.ts",
+    "check-config": "bun scripts/sync-config.ts --check"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3",

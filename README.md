@@ -22,7 +22,7 @@ An issue notifies when it matches a watched label or the AI marks it relevant.
 | Scheduler | Cloudflare Cron Trigger | No server to keep alive, native retry semantics, hourly cadence is free |
 | Config | `watchers.yaml` in the repo, synced to KV on deploy | Reviewable in PRs, no dashboard editing, one source of truth |
 | State | Workers KV | Cursor per repo plus dedupe keys with TTL |
-| GitHub access | Fine-grained PAT stored as a Worker secret | Raises the search API limit from 10 to 30 requests per minute and supports private repos |
+| GitHub access | Octokit with a PAT in a Worker secret | Typed client, pagination, and errors; raises the search limit from 10 to 30 requests per minute |
 | AI gate | AI SDK on the OpenCode Go endpoint | Typed `Output.object` schema, cheap per-token pricing, model selectable per watcher |
 | Email | `send_email` binding | Native, free to verified destination addresses, no third-party signup |
 

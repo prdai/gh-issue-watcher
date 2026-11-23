@@ -35,12 +35,13 @@ describe("searchIssuesSince", () => {
       },
     ]);
 
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const [input, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const url = new URL(String(input));
     expect(url.searchParams.get("q")).toBe(
       "repo:owner/repo is:issue created:2026-11-22T04:00:00Z..2026-11-22T05:00:00Z",
     );
     expect(url.searchParams.get("sort")).toBe("created");
-    expect(init.headers).toMatchObject({ authorization: "Bearer gh-token" });
+    expect(new Headers(init.headers).get("authorization")).toBe("token gh-token");
   });
 
   it("paginates until a short page", async () => {

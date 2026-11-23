@@ -1,31 +1,10 @@
-import { z } from "zod";
+import { RequestError } from "@octokit/request-error";
+import { Octokit } from "@octokit/rest";
 import type { Env } from "./env.ts";
 
-const GITHUB_API = "https://api.github.com";
-const GITHUB_API_VERSION = "2022-11-28";
 const PER_PAGE = 100;
 const MAX_PAGES = 10;
-const ERROR_BODY_CHARS = 200;
-
-const issueSchema = z.object({
-  number: z.number().int().positive(),
-  title: z.string(),
-  body: z.string().nullable(),
-  html_url: z.string(),
-  created_at: z.string(),
-  user: z.object({ login: z.string() }).nullable(),
-  labels: z.array(
-    z.union([
-      z.string(),
-      z.object({ name: z.string() }),
-    ]),
-  ),
-});
-
-const searchSchema = z.object({
-  total_count: z.number().int(),
-  items: z.array(issueSchema),
-});
+const USER_AGENT = "gh-issue-watcher/0.1";
 
 export interface Issue {
   number: number;
@@ -39,7 +18,7 @@ export interface Issue {
 
 export class GitHubError extends Error {
   constructor(
-    readonly status: number,
+    readonly status: number | null,
     message: string,
     readonly resetAt: Date | null = null,
   ) {
@@ -55,10 +34,11 @@ export interface SearchWindow {
 }
 
 export async function searchIssuesSince(env: Env, window: SearchWindow): Promise<Issue[]> {
+  const octokit = new Octokit({ auth: env.GITHUB_TOKEN, userAgent: USER_AGENT });
   const issues: Issue[] = [];
 
   for (let page = 1; page <= MAX_PAGES; page++) {
-    const items = await searchPage(window, page, env.GITHUB_TOKEN);
+    const items = await searchPage(octokit, window, page);
     issues.push(...items.map((item) => normalize(item)));
     if (items.length < PER_PAGE) break;
   }
@@ -66,51 +46,46 @@ export async function searchIssuesSince(env: Env, window: SearchWindow): Promise
   return issues;
 }
 
-async function searchPage(window: SearchWindow, page: number, token: string): Promise<z.infer<typeof issueSchema>[]> {
-  const query = `repo:${window.repo} is:issue created:${queryTime(window.since)}..${queryTime(window.until)}`;
-  const url = new URL(`${GITHUB_API}/search/issues`);
-  url.searchParams.set("q", query);
-  url.searchParams.set("sort", "created");
-  url.searchParams.set("order", "asc");
-  url.searchParams.set("per_page", String(PER_PAGE));
-  url.searchParams.set("page", String(page));
+type SearchItem = Awaited<ReturnType<Octokit["rest"]["search"]["issuesAndPullRequests"]>>["data"]["items"][number];
 
-  const response = await fetch(url, {
-    headers: {
-      accept: "application/vnd.github+json",
-      authorization: `Bearer ${token}`,
-      "user-agent": "gh-issue-watcher",
-      "x-github-api-version": GITHUB_API_VERSION,
-    },
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new GitHubError(
-      response.status,
-      `GitHub ${response.status} for ${window.repo}: ${body.slice(0, ERROR_BODY_CHARS)}`,
-      rateLimitReset(response.headers),
-    );
+async function searchPage(octokit: Octokit, window: SearchWindow, page: number): Promise<SearchItem[]> {
+  try {
+    const { data } = await octokit.rest.search.issuesAndPullRequests({
+      q: `repo:${window.repo} is:issue created:${queryTime(window.since)}..${queryTime(window.until)}`,
+      sort: "created",
+      order: "asc",
+      per_page: PER_PAGE,
+      page,
+    });
+    if (!Array.isArray(data.items)) {
+      throw new GitHubError(null, `unexpected GitHub response for ${window.repo}`);
+    }
+    return data.items;
+  } catch (error) {
+    if (error instanceof GitHubError) throw error;
+    if (error instanceof RequestError) {
+      throw new GitHubError(
+        error.status,
+        `GitHub ${error.status} for ${window.repo}: ${error.message}`,
+        rateLimitReset(error),
+      );
+    }
+    throw new GitHubError(null, `GitHub request failed for ${window.repo}: ${String(error)}`);
   }
-
-  const parsed = searchSchema.safeParse(await response.json());
-  if (!parsed.success) {
-    throw new GitHubError(response.status, `unexpected GitHub response for ${window.repo}`);
-  }
-  return parsed.data.items;
 }
 
 function queryTime(iso: string): string {
   return iso.replace(/\.\d{3}Z$/, "Z");
 }
 
-function rateLimitReset(headers: Headers): Date | null {
-  if (headers.get("x-ratelimit-remaining") !== "0") return null;
-  const reset = Number(headers.get("x-ratelimit-reset"));
+function rateLimitReset(error: RequestError): Date | null {
+  const headers = error.response?.headers ?? {};
+  if (String(headers["x-ratelimit-remaining"]) !== "0") return null;
+  const reset = Number(headers["x-ratelimit-reset"]);
   return Number.isFinite(reset) ? new Date(reset * 1000) : null;
 }
 
-function normalize(raw: z.infer<typeof issueSchema>): Issue {
+function normalize(raw: SearchItem): Issue {
   return {
     number: raw.number,
     title: raw.title,
@@ -118,6 +93,9 @@ function normalize(raw: z.infer<typeof issueSchema>): Issue {
     url: raw.html_url,
     createdAt: raw.created_at,
     author: raw.user?.login ?? "ghost",
-    labels: raw.labels.map((label) => (typeof label === "string" ? label : label.name)),
+    labels: raw.labels.flatMap((label) => {
+      if (typeof label === "string") return [label];
+      return label.name ? [label.name] : [];
+    }),
   };
 }

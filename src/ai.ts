@@ -8,6 +8,7 @@ const OPENCODE_BASE_URL = "https://opencode.ai/inference/go/openai/v1";
 const USER_AGENT = "gh-issue-watcher/0.1";
 const MAX_BODY_CHARS = 2000;
 const MAX_OUTPUT_TOKENS = 1500;
+const REASONING_EFFORT = "low";
 
 const verdictSchema = z.object({
   relevant: z.boolean(),
@@ -39,6 +40,7 @@ export async function judgeIssue(env: Env, input: JudgeInput): Promise<Verdict> 
     supportsStructuredOutputs: true,
     headers: { "x-opencode-session": input.session },
     fetch: agentFetch,
+    transformRequestBody: (body) => ({ ...body, reasoning_effort: REASONING_EFFORT }),
   });
 
   try {

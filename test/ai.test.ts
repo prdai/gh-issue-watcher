@@ -46,6 +46,7 @@ describe("judgeIssue", () => {
       model: "deepseek-v4.1-flash",
       temperature: 0,
       max_tokens: 1500,
+      reasoning_effort: "low",
       response_format: { type: "json_schema" },
     });
     expect(body.messages[0]).toMatchObject({ role: "system" });

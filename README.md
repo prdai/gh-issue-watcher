@@ -119,7 +119,7 @@ The plan is intended for coding-agent traffic and is monitored for abuse. This w
 - Cloudflare Workers and Cron Triggers: hourly execution fits the free plan.
 - KV: negligible for this write volume.
 - Email to verified destinations: free.
-- AI: only unmatched new issues, one short completion each. At `deepseek-v4.1-flash` pricing this is fractions of a cent per run.
+- AI: only unmatched new issues, one short completion each, requested with `reasoning_effort: low` to cut reasoning tokens and latency. At `deepseek-v4.1-flash` pricing a call measures about $0.0003.
 
 ## Repository layout
 

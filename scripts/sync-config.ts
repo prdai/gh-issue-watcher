@@ -2,15 +2,16 @@ import { readFile, writeFile, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { parse } from "yaml";
 import { ZodError } from "zod";
-import { parseWatchersYaml } from "./config-file.ts";
+import { parseConfig } from "../src/config.ts";
 
 const CONFIG_PATH = resolve(process.cwd(), "watchers.yaml");
 const CHECK = process.argv.includes("--check");
 
 let config;
 try {
-  config = parseWatchersYaml(await readFile(CONFIG_PATH, "utf8"));
+  config = parseConfig(parse(await readFile(CONFIG_PATH, "utf8")));
 } catch (error) {
   if (error instanceof ZodError) {
     for (const issue of error.issues) {

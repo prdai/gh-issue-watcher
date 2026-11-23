@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 import { parseConfig, resolveWatchers } from "../src/config.ts";
-import { parseWatchersYaml } from "../scripts/config-file.ts";
+import type { Config } from "../src/config.ts";
+
+const parseWatchersYaml = (text: string): Config => parseConfig(parse(text));
 
 const base = `
 defaults:

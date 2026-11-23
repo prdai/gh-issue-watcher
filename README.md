@@ -136,7 +136,6 @@ src/
   email.ts      send_email wrapper
 scripts/
   sync-config.ts
-  config-file.ts
 test/
 .github/workflows/ci.yml
 ```

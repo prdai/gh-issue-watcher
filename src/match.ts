@@ -1,6 +1,6 @@
 import type { Issue } from "./github.ts";
 
-export const INITIAL_LOOKBACK_MS = 24 * 60 * 60 * 1000;
+export const INITIAL_LOOKBACK_MS = 60 * 60 * 1000;
 
 export function matchesAnyLabel(issue: Issue, labels: string[]): boolean {
   if (labels.length === 0) return false;

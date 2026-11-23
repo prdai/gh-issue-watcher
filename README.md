@@ -59,7 +59,7 @@ watchers:
 
 `defaults.ai.maxPerRun` caps AI checks per repo per run.
 
-The AI gate only runs on issues that did not match a label, because a label hit already notifies. This keeps token spend proportional to unmatched volume. `maxPerRun` bounds the cost of a busy repo; the rest of the window is deferred to the next run instead of being dropped.
+The AI gate only runs on issues that did not match a label, because a label hit already notifies. This keeps token spend proportional to unmatched volume. `maxPerRun` bounds the cost of a busy repo. Issues past the cap are not AI-checked and are counted as skipped in the run summary. Label matches are never skipped.
 
 ## Setup
 
@@ -99,11 +99,12 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 
 ## Limits and behavior
 
-- Cursor semantics are "created since the previous run". Edits and comments to existing issues are not picked up.
+- Cursor semantics are strictly "created since the previous successful check". Edits and comments to existing issues are not picked up. The first run looks back one hour.
+- The cursor advances to the run start once the search succeeds, even if some AI checks failed or were skipped. A failed search leaves the cursor alone so the same window is retried.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
-- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line. The repo cursor does not advance, so the issue is retried next run.
-- AI-rejected issues are recorded as processed. They are not re-checked, which keeps spend flat while a cursor is behind.
+- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line naming the issue number. The window still advances, so the issue is not revisited.
+- AI-rejected issues are recorded as processed for the boundary overlap between runs, which prevents duplicate emails.
 - Dedupe keys expire after 30 days. The same issue is never emailed twice while the key is live.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 

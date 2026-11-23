@@ -87,36 +87,27 @@ describe("run", () => {
     expect(test.store.has("cursor:owner/repo")).toBe(false);
   });
 
-  it("retries an issue whose AI check failed", async () => {
+  it("advances the window even when an AI check fails", async () => {
     const test = await seeded();
-    let aiFails = true;
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         if (String(input).startsWith("https://api.github.com/")) {
           return jsonResponse({ total_count: 1, items: [githubItem(makeIssue(9))] });
         }
-        if (aiFails) {
-          aiFails = false;
-          return new Response("boom", { status: 500 });
-        }
-        return completion({ relevant: true, score: 0.9, reason: "match" });
+        return new Response("boom", { status: 500 });
       }),
     );
 
-    const first = await run(test.env, now);
-    expect(first.failures).toBe(1);
-    expect(test.store.has("cursor:owner/repo")).toBe(false);
-    expect(test.store.has("seen:owner/repo:9")).toBe(false);
+    const summary = await run(test.env, now);
 
-    const later = new Date(now.getTime() + 3600_000);
-    const second = await run(test.env, later);
-    expect(second.failures).toBe(0);
-    expect(second.issues).toBe(1);
-    expect(test.store.get("cursor:owner/repo")).toBe(later.toISOString());
+    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true, skipped: 0 });
+    expect(summary.errors[0]?.message).toContain("AI: #9");
+    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+    expect(test.store.has("seen:owner/repo:9")).toBe(false);
   });
 
-  it("defers the rest of the window when the AI cap is hit", async () => {
+  it("skips AI checks beyond the cap and still advances the window", async () => {
     const test = await seeded({
       defaults: {
         ai: { enabled: true, model: "deepseek-v4.1-flash", maxPerRun: 1 },
@@ -127,10 +118,28 @@ describe("run", () => {
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false });
+    expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false, skipped: 1 });
     expect(test.store.get("seen:owner/repo:1")).toBe("1");
     expect(test.store.has("seen:owner/repo:2")).toBe(false);
-    expect(test.store.has("cursor:owner/repo")).toBe(false);
+    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+  });
+
+  it("never skips label matches because of the AI cap", async () => {
+    const test = await seeded({
+      defaults: {
+        ai: { enabled: true, model: "deepseek-v4.1-flash", maxPerRun: 1 },
+        notify: { to: "dest@example.com", from: "issues@example.com" },
+      },
+    });
+    stubApi({
+      issues: [makeIssue(1), makeIssue(2, { labels: ["bug"] }), makeIssue(3, { labels: ["bug"] })],
+      verdict: { relevant: false, score: 0.1, reason: "no" },
+    });
+
+    const summary = await run(test.env, now);
+
+    expect(summary).toMatchObject({ issues: 2, failures: 0, emailed: true, skipped: 0 });
+    expect(summary.hits.map((hit) => hit.number)).toEqual([2, 3]);
   });
 
   it("fails clearly when config is missing", async () => {

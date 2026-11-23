@@ -14,6 +14,7 @@ export interface RunSummary {
   failures: number;
   emailed: boolean;
   errors: DigestFailure[];
+  hits: { repo: string; number: number; source: "label" | "ai" }[];
 }
 
 interface CollectResult {
@@ -54,6 +55,7 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
     failures: failures.length,
     emailed: shouldEmail,
     errors: failures,
+    hits: entries.map((entry) => ({ repo: entry.repo, number: entry.issue.number, source: entry.source })),
   };
 }
 

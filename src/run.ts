@@ -13,6 +13,7 @@ export interface RunSummary {
   issues: number;
   failures: number;
   emailed: boolean;
+  errors: DigestFailure[];
 }
 
 interface CollectResult {
@@ -52,6 +53,7 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
     issues: entries.length,
     failures: failures.length,
     emailed: shouldEmail,
+    errors: failures,
   };
 }
 
@@ -108,11 +110,13 @@ async function collect(
       } catch (error) {
         result.failed = true;
         failures.push({ repo: watcher.repo, message: `AI: ${errorMessage(error)}` });
+        console.error(`[${watcher.repo}] AI check failed: ${errorMessage(error)}`);
       }
     }
   } catch (error) {
     result.failed = true;
     failures.push({ repo: watcher.repo, message: errorMessage(error) });
+    console.error(`[${watcher.repo}] search failed: ${errorMessage(error)}`);
   }
 
   return result;

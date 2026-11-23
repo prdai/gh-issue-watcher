@@ -2,25 +2,78 @@ defaults:
   ai:
     enabled: true
     model: deepseek-v4.1-flash
-    maxPerRun: 25
+    maxPerRun: 3
   notify:
     to: go2ranuga@gmail.com
     from: issues@prdai.dev
 
 watchers:
-  - repo: honojs/hono
-    labels: ["bug", "good first issue"]
-    interest: |
-      Bugs in routing, middleware, or runtime adapters. Ignore documentation
-      fixes and questions about other frameworks.
-
-  - repo: cloudflare/workers-sdk
+  - repo: vllm-project/vllm
     labels: ["good first issue"]
     interest: |
-      Bugs in wrangler, workerd bindings, or local development behavior.
+      Small, self-contained bugs in the OpenAI-compatible server, sampling,
+      scheduler, or a single model integration that a new contributor can fix
+      without cluster access. Ignore feature plans, multi-node performance
+      regressions, and hardware-specific benchmarking.
 
-  - repo: oven-sh/bun
-    labels: ["bug"]
+  - repo: sgl-project/sglang
+    labels: ["good first issue", "good second issue"]
     interest: |
-      Runtime, bundler, or package manager correctness bugs. Ignore feature
-      requests and performance comparisons with other runtimes.
+      Beginner-sized fixes in the runtime, frontend, or model configuration
+      for LLM serving. Ignore large refactors and distributed deployment
+      issues that need multi-GPU hardware.
+
+  - repo: ggml-org/llama.cpp
+    labels: ["good first issue"]
+    interest: |
+      Small bugs in the CUDA, Metal, Vulkan, or CPU backends, tokenizer, CLI
+      flags, build, or quantization paths. Ignore model support requests and
+      benchmarking comparisons.
+
+  - repo: ollama/ollama
+    labels: ["good first issue"]
+    interest: |
+      Local LLM runtime bugs that a newcomer can reproduce on one machine,
+      such as model loading, GPU detection, API responses, or CLI behavior.
+      Ignore feature requests and Apple or NVIDIA driver issues that need
+      specific hardware.
+
+  - repo: huggingface/transformers
+    labels: ["Good First Issue", "Good Second Issue"]
+    interest: |
+      Small fixes in model code, tokenizers, generation, or GPU kernels for
+      inference. Ignore training-only changes, new model additions, and
+      issues that need a full benchmark run.
+
+  - repo: huggingface/text-generation-inference
+    labels: ["good first issue"]
+    interest: |
+      Beginner-sized bugs in the inference server, batching, token streaming,
+      or client API. Ignore multi-node deployment and kernel work that needs
+      GPU access.
+
+  - repo: flashinfer-ai/flashinfer
+    labels: ["good first issue"]
+    interest: |
+      Small kernel correctness bugs, missing operator coverage, or example
+      fixes for LLM serving kernels. Ignore large performance tuning work.
+
+  - repo: NVIDIA/cutlass
+    labels: ["good first issue"]
+    interest: |
+      Small template, example, or documentation bugs in GPU GEMM and
+      attention kernels that a new contributor can build locally. Ignore
+      architecture-specific tuning and new kernel families.
+
+  - repo: unslothai/unsloth
+    labels: ["good first issue"]
+    interest: |
+      Small bugs in model patches, kernel wrappers, or VRAM-saving paths for
+      fine-tuning and inference. Ignore training-speed comparisons.
+
+  - repo: ggml-org/whisper.cpp
+    labels: ["good first issue"]
+    interest: |
+      Small bugs in the speech inference backends, CLI, or build that a
+      newcomer can reproduce locally. Ignore new model support and benchmark
+      comparisons.

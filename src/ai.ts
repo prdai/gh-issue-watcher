@@ -1,13 +1,13 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { APICallError, generateText, NoObjectGeneratedError, Output } from "ai";
+import { APICallError, generateText, NoObjectGeneratedError, NoOutputGeneratedError, Output } from "ai";
 import { z } from "zod";
 import type { Env } from "./env.ts";
 import type { Issue } from "./github.ts";
 
 const OPENCODE_BASE_URL = "https://opencode.ai/inference/go/openai/v1";
 const USER_AGENT = "gh-issue-watcher/0.1";
-const MAX_BODY_CHARS = 4000;
-const MAX_OUTPUT_TOKENS = 300;
+const MAX_BODY_CHARS = 2000;
+const MAX_OUTPUT_TOKENS = 1500;
 
 const verdictSchema = z.object({
   relevant: z.boolean(),
@@ -85,6 +85,9 @@ const agentFetch: typeof fetch = (input, init) => {
 };
 
 function toAiError(error: unknown): AiError {
+  if (NoOutputGeneratedError.isInstance(error)) {
+    return new AiError("model produced no final answer within the token budget");
+  }
   if (NoObjectGeneratedError.isInstance(error)) {
     return new AiError(`completion did not match the verdict schema: ${error.message}`);
   }

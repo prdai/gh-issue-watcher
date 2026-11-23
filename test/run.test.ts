@@ -142,6 +142,41 @@ describe("run", () => {
     expect(summary.hits.map((hit) => hit.number)).toEqual([2, 3]);
   });
 
+  it("collects watchers concurrently and keeps their results ordered", async () => {
+    const test = testEnv();
+    await test.env.CONFIG.put(
+      "config:watchers",
+      JSON.stringify({
+        defaults: {
+          ai: { enabled: false, model: "m", maxPerRun: 1 },
+          notify: { to: "dest@example.com", from: "issues@example.com" },
+        },
+        watchers: [
+          { repo: "owner/one", labels: ["bug"] },
+          { repo: "owner/two", labels: ["bug"] },
+        ],
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const q = new URL(String(input)).searchParams.get("q") ?? "";
+        const number = q.startsWith("repo:owner/one") ? 1 : 2;
+        return jsonResponse({
+          total_count: 1,
+          items: [githubItem(makeIssue(number, { labels: ["bug"] }))],
+        });
+      }),
+    );
+
+    const summary = await run(test.env, now);
+
+    expect(summary).toMatchObject({ repos: 2, issues: 2, failures: 0, emailed: true });
+    expect(summary.hits.map((hit) => hit.repo)).toEqual(["owner/one", "owner/two"]);
+    expect(test.store.get("cursor:owner/one")).toBe(now.toISOString());
+    expect(test.store.get("cursor:owner/two")).toBe(now.toISOString());
+  });
+
   it("fails clearly when config is missing", async () => {
     const test = testEnv();
 

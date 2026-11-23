@@ -22,6 +22,9 @@ interface CollectResult {
   searched: boolean;
   processed: number[];
   skipped: number;
+  entries: DigestEntry[];
+  failures: DigestFailure[];
+  notes: string[];
 }
 
 export async function run(env: Env, now: Date): Promise<RunSummary> {
@@ -29,17 +32,23 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   const watchers = resolveWatchers(config);
   const aiLimit = maxAiChecks(config);
   const until = now.toISOString();
+  const settled: string[] = [];
+  const processed = new Map<string, number[]>();
   const entries: DigestEntry[] = [];
   const failures: DigestFailure[] = [];
   const notes: string[] = [];
-  const settled: string[] = [];
-  const processed = new Map<string, number[]>();
   let skipped = 0;
 
-  for (const watcher of watchers) {
-    const result = await collect(env, watcher, now, until, aiLimit, entries, failures, notes);
+  const collected = await Promise.all(
+    watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, now, until, aiLimit) })),
+  );
+
+  for (const { watcher, result } of collected) {
     processed.set(watcher.repo, result.processed);
     skipped += result.skipped;
+    entries.push(...result.entries);
+    failures.push(...result.failures);
+    notes.push(...result.notes);
     if (result.searched) settled.push(watcher.repo);
   }
 
@@ -69,11 +78,15 @@ async function collect(
   now: Date,
   until: string,
   aiLimit: number,
-  entries: DigestEntry[],
-  failures: DigestFailure[],
-  notes: string[],
 ): Promise<CollectResult> {
-  const result: CollectResult = { searched: false, processed: [], skipped: 0 };
+  const result: CollectResult = {
+    searched: false,
+    processed: [],
+    skipped: 0,
+    entries: [],
+    failures: [],
+    notes: [],
+  };
 
   try {
     const cursor = await getCursor(env, watcher.repo);
@@ -86,7 +99,7 @@ async function collect(
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
         result.processed.push(issue.number);
-        entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, notify: watcher.notify });
+        result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, notify: watcher.notify });
         continue;
       }
 
@@ -111,19 +124,19 @@ async function collect(
         });
         result.processed.push(issue.number);
         if (verdict.relevant) {
-          entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
+          result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
         }
       } catch (error) {
-        failures.push({ repo: watcher.repo, message: `AI: #${issue.number} ${errorMessage(error)}` });
+        result.failures.push({ repo: watcher.repo, message: `AI: #${issue.number} ${errorMessage(error)}` });
         console.error(`[${watcher.repo}] AI check failed for #${issue.number}: ${errorMessage(error)}`);
       }
     }
 
     if (result.skipped > 0) {
-      notes.push(`${watcher.repo}: ${result.skipped} issues skipped by the AI cap of ${aiLimit}`);
+      result.notes.push(`${watcher.repo}: ${result.skipped} issues skipped by the AI cap of ${aiLimit}`);
     }
   } catch (error) {
-    failures.push({ repo: watcher.repo, message: errorMessage(error) });
+    result.failures.push({ repo: watcher.repo, message: errorMessage(error) });
     console.error(`[${watcher.repo}] search failed: ${errorMessage(error)}`);
   }
 

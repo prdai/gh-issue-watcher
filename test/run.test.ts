@@ -106,11 +106,11 @@ describe("run", () => {
     const summary = await run(test.env, now);
 
     expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: false });
-    expect(summary.errors[0]?.message).toContain("AI batch of 1");
+    expect(summary.errors[0]?.message).toContain("AI request for 1 issues");
     expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
-  it("batches unmatched issues instead of calling the model per issue", async () => {
+  it("sends one AI request for the whole window", async () => {
     const test = await seeded();
     const issues = Array.from({ length: 25 }, (_, index) => makeIssue(index + 1));
     stubApi({ issues });
@@ -119,7 +119,7 @@ describe("run", () => {
 
     expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false });
     const aiCalls = vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("opencode.ai"));
-    expect(aiCalls).toHaveLength(2);
+    expect(aiCalls).toHaveLength(1);
     expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 

@@ -22,8 +22,6 @@ export interface RunSummary {
   hits: { repo: string; number: number; source: "label" | "ai" }[];
 }
 
-const AI_BATCH_SIZE = 20;
-
 interface CollectResult {
   searched: boolean;
   entries: DigestEntry[];
@@ -85,26 +83,23 @@ async function collect(
       unmatched.push(issue);
     }
 
-    if (watcher.ai) {
-      const session = `gh-issue-watcher:${watcher.repo}`;
-      for (const batch of chunk(unmatched, AI_BATCH_SIZE)) {
-        try {
-          const verdicts = await judgeIssues(env, {
-            issues: batch,
-            interest: watcher.interest,
-            model: watcher.model,
-            session,
-          });
-          for (const issue of batch) {
-            const verdict = verdicts.get(issue.number);
-            if (verdict?.relevant) {
-              result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
-            }
+    if (watcher.ai && unmatched.length > 0) {
+      try {
+        const verdicts = await judgeIssues(env, {
+          issues: unmatched,
+          interest: watcher.interest,
+          model: watcher.model,
+          session: `gh-issue-watcher:${watcher.repo}`,
+        });
+        for (const issue of unmatched) {
+          const verdict = verdicts.get(issue.number);
+          if (verdict?.relevant) {
+            result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
           }
-        } catch (error) {
-          result.failures.push({ repo: watcher.repo, message: `AI batch of ${batch.length}: ${errorMessage(error)}` });
-          console.error(`[${watcher.repo}] AI batch of ${batch.length} failed: ${errorMessage(error)}`);
         }
+      } catch (error) {
+        result.failures.push({ repo: watcher.repo, message: `AI request for ${unmatched.length} issues: ${errorMessage(error)}` });
+        console.error(`[${watcher.repo}] AI request for ${unmatched.length} issues failed: ${errorMessage(error)}`);
       }
     }
   } catch (error) {
@@ -113,14 +108,6 @@ async function collect(
   }
 
   return result;
-}
-
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size));
-  }
-  return chunks;
 }
 
 async function deliver(env: Env, entries: DigestEntry[], now: Date): Promise<void> {

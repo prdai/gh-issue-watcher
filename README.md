@@ -56,7 +56,7 @@ watchers:
 | `interest` | no | What counts as relevant. Falls back to `defaults.interest` |
 | `notify` | no | Per-watcher override of the recipient and sender |
 
-The AI gate only runs on issues that did not match a label, because a label hit already notifies. All unmatched issues in the window go to the model in one batched request per repo, split into batches of 20 when the window is larger.
+The AI gate only runs on issues that did not match a label, because a label hit already notifies. All unmatched issues in the window go to the model in a single request per repo.
 
 ## Setup
 
@@ -101,7 +101,7 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 - The next window starts one second after the cursor, so an issue is never fetched twice and no per-issue state is stored.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
-- AI failures are fail-closed: the batch is not reported, the error is logged with the repo and batch size, and the window still advances. Failures never trigger or appear in an email.
+- AI failures are fail-closed: the batch is not reported, the error is logged with the repo and issue count, and the window still advances. Failures never trigger or appear in an email.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 
 ## OpenCode Go client requirements
@@ -115,7 +115,7 @@ The plan is intended for coding-agent traffic and is monitored for abuse. This w
 - Cloudflare Workers and Cron Triggers: hourly execution fits the free plan.
 - KV: negligible for this write volume.
 - Email to verified destinations: free.
-- AI: only unmatched new issues, sent as one batched request per repo per window (batches of 20) and requested with `reasoning_effort: low`. A three-issue batch measures about $0.001 at `deepseek-v4.1-flash` pricing.
+- AI: only unmatched new issues, sent as one request per repo per window with `reasoning_effort: low`. A three-issue request measures about $0.001 at `deepseek-v4.1-flash` pricing.
 
 ## Repository layout
 

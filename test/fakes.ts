@@ -93,7 +93,7 @@ export function completion(content: unknown): Response {
 
 export const WATCHER_CONFIG = {
   defaults: {
-    ai: { enabled: true, model: "deepseek-v4.1-flash", maxPerRun: 25 },
+    ai: { enabled: true, model: "deepseek-v4.1-flash" },
     notify: { to: "dest@example.com", from: "issues@example.com" },
   },
   watchers: [{ repo: "owner/repo", labels: ["bug"] }],

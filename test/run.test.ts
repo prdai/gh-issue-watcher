@@ -18,7 +18,7 @@ async function seeded(overrides: Record<string, unknown> = {}): Promise<TestEnv>
   return test;
 }
 
-function stubApi(options: { issues?: Issue[]; status?: number; verdict?: unknown; error?: string }) {
+function stubApi(options: { issues?: Issue[]; status?: number; relevant?: boolean; error?: string }) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.startsWith("https://api.github.com/")) {
@@ -31,7 +31,15 @@ function stubApi(options: { issues?: Issue[]; status?: number; verdict?: unknown
       const issues = options.issues ?? [];
       return jsonResponse({ total_count: issues.length, items: issues.map(githubItem) });
     }
-    return completion(options.verdict ?? { relevant: false, score: 0.2, reason: "not a match" });
+    const issues = options.issues ?? [];
+    return completion({
+      verdicts: issues.map((issue) => ({
+        number: issue.number,
+        relevant: options.relevant ?? false,
+        score: 0.5,
+        reason: "stub verdict",
+      })),
+    });
   });
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -46,7 +54,7 @@ describe("run", () => {
         makeIssue(2, { labels: [] }),
         makeIssue(3, { labels: [] }),
       ],
-      verdict: { relevant: true, score: 0.9, reason: "real bug" },
+      relevant: true,
     });
 
     const summary = await run(test.env, now);
@@ -66,7 +74,7 @@ describe("run", () => {
 
   it("does not email when nothing matches", async () => {
     const test = await seeded();
-    stubApi({ issues: [makeIssue(1)], verdict: { relevant: false, score: 0.1, reason: "docs" } });
+    stubApi({ issues: [makeIssue(1)] });
 
     const summary = await run(test.env, now);
 
@@ -101,45 +109,37 @@ describe("run", () => {
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true, skipped: 0 });
-    expect(summary.errors[0]?.message).toContain("AI: #9");
+    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
+    expect(summary.errors[0]?.message).toContain("AI batch of 1");
     expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
     expect(test.store.has("seen:owner/repo:9")).toBe(false);
   });
 
-  it("skips AI checks beyond the cap and still advances the window", async () => {
-    const test = await seeded({
-      defaults: {
-        ai: { enabled: true, model: "deepseek-v4.1-flash", maxPerRun: 1 },
-        notify: { to: "dest@example.com", from: "issues@example.com" },
-      },
-    });
-    stubApi({ issues: [makeIssue(1), makeIssue(2)], verdict: { relevant: false, score: 0.1, reason: "no" } });
+  it("batches unmatched issues instead of calling the model per issue", async () => {
+    const test = await seeded();
+    const issues = Array.from({ length: 25 }, (_, index) => makeIssue(index + 1));
+    stubApi({ issues });
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false, skipped: 1 });
-    expect(test.store.get("seen:owner/repo:1")).toBe("1");
-    expect(test.store.has("seen:owner/repo:2")).toBe(false);
+    expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false });
+    const aiCalls = vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("opencode.ai"));
+    expect(aiCalls).toHaveLength(2);
     expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
   });
 
-  it("never skips label matches because of the AI cap", async () => {
-    const test = await seeded({
-      defaults: {
-        ai: { enabled: true, model: "deepseek-v4.1-flash", maxPerRun: 1 },
-        notify: { to: "dest@example.com", from: "issues@example.com" },
-      },
-    });
-    stubApi({
-      issues: [makeIssue(1), makeIssue(2, { labels: ["bug"] }), makeIssue(3, { labels: ["bug"] })],
-      verdict: { relevant: false, score: 0.1, reason: "no" },
-    });
+  it("keeps label matches out of the AI batch", async () => {
+    const test = await seeded();
+    stubApi({ issues: [makeIssue(1, { labels: ["bug"] }), makeIssue(2)] });
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 2, failures: 0, emailed: true, skipped: 0 });
-    expect(summary.hits.map((hit) => hit.number)).toEqual([2, 3]);
+    expect(summary).toMatchObject({ issues: 1, failures: 0, emailed: true });
+    const aiCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("opencode.ai"));
+    const body = JSON.parse(String((aiCall?.[1] as RequestInit).body));
+    const prompt = JSON.stringify(body.messages);
+    expect(prompt).toContain("### 2");
+    expect(prompt).not.toContain("### 1");
   });
 
   it("collects watchers concurrently and keeps their results ordered", async () => {
@@ -148,7 +148,7 @@ describe("run", () => {
       "config:watchers",
       JSON.stringify({
         defaults: {
-          ai: { enabled: false, model: "m", maxPerRun: 1 },
+          ai: { enabled: false, model: "m" },
           notify: { to: "dest@example.com", from: "issues@example.com" },
         },
         watchers: [

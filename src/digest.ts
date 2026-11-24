@@ -20,16 +20,11 @@ export interface Digest {
   html: string;
 }
 
-export function renderDigest(
-  entries: DigestEntry[],
-  failures: DigestFailure[],
-  notes: string[],
-  now: Date,
-): Digest {
+export function renderDigest(entries: DigestEntry[], failures: DigestFailure[], now: Date): Digest {
   return {
     subject: subjectFor(entries, failures),
-    text: textFor(entries, failures, notes, now),
-    html: htmlFor(entries, failures, notes, now),
+    text: textFor(entries, failures, now),
+    html: htmlFor(entries, failures, now),
   };
 }
 
@@ -41,12 +36,7 @@ function subjectFor(entries: DigestEntry[], failures: DigestFailure[]): string {
   return `gh-issue-watcher: ${issues} in ${repoPart}${failurePart}`;
 }
 
-function textFor(
-  entries: DigestEntry[],
-  failures: DigestFailure[],
-  notes: string[],
-  now: Date,
-): string {
+function textFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): string {
   const lines = [`gh-issue-watcher run ${now.toISOString()}`, ""];
 
   for (const [repo, group] of groupByRepo(entries)) {
@@ -68,21 +58,10 @@ function textFor(
     lines.push("");
   }
 
-  if (notes.length > 0) {
-    lines.push("Notes");
-    for (const note of notes) lines.push(`  ${note}`);
-    lines.push("");
-  }
-
   return lines.join("\n").trimEnd() + "\n";
 }
 
-function htmlFor(
-  entries: DigestEntry[],
-  failures: DigestFailure[],
-  notes: string[],
-  now: Date,
-): string {
+function htmlFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): string {
   const parts = [`<p>gh-issue-watcher run ${escapeHtml(now.toISOString())}</p>`];
 
   for (const [repo, group] of groupByRepo(entries)) {
@@ -104,12 +83,6 @@ function htmlFor(
     for (const failure of failures) {
       parts.push(`<li>${escapeHtml(failure.repo)}: ${escapeHtml(failure.message)}</li>`);
     }
-    parts.push("</ul>");
-  }
-
-  if (notes.length > 0) {
-    parts.push("<h2>Notes</h2><ul>");
-    for (const note of notes) parts.push(`<li>${escapeHtml(note)}</li>`);
     parts.push("</ul>");
   }
 

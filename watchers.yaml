@@ -2,7 +2,6 @@ defaults:
   ai:
     enabled: true
     model: deepseek-v4.1-flash
-    maxPerRun: 3
   notify:
     to: go2ranuga@gmail.com
     from: issues@prdai.dev

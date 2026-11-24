@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const DEFAULT_MODEL = "deepseek-v4.1-flash";
 export const DEFAULT_AI_ENABLED = true;
-export const DEFAULT_MAX_AI_CHECKS = 25;
 
 const REPO_PATTERN = /^[\w.-]+\/[\w.-]+$/;
 
@@ -17,7 +16,6 @@ const aiDefaultsSchema = z
   .object({
     enabled: z.boolean().default(DEFAULT_AI_ENABLED),
     model: z.string().trim().min(1).default(DEFAULT_MODEL),
-    maxPerRun: z.number().int().min(1).max(500).default(DEFAULT_MAX_AI_CHECKS),
   })
   .strict();
 
@@ -87,8 +85,4 @@ export function resolveWatchers(config: Config): ResolvedWatcher[] {
       from: watcher.notify?.from ?? config.defaults.notify.from,
     },
   }));
-}
-
-export function maxAiChecks(config: Config): number {
-  return config.defaults.ai.maxPerRun;
 }

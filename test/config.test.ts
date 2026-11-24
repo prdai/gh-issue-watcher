@@ -20,7 +20,6 @@ describe("config", () => {
     expect(config.defaults.ai).toEqual({
       enabled: true,
       model: "deepseek-v4.1-flash",
-      maxPerRun: 25,
     });
     expect(config.watchers[0]?.labels).toEqual([]);
   });

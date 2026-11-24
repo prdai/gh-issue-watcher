@@ -1,5 +1,5 @@
-import { judgeIssue } from "./ai.ts";
-import { maxAiChecks, resolveWatchers, type Config, type ResolvedWatcher } from "./config.ts";
+import { judgeIssues } from "./ai.ts";
+import { resolveWatchers, type Config, type ResolvedWatcher } from "./config.ts";
 import { renderDigest, type DigestEntry, type DigestFailure } from "./digest.ts";
 import { sendEmail } from "./email.ts";
 import type { Env } from "./env.ts";
@@ -15,45 +15,39 @@ export interface RunSummary {
   emailed: boolean;
   errors: DigestFailure[];
   hits: { repo: string; number: number; source: "label" | "ai" }[];
-  skipped: number;
 }
+
+const AI_BATCH_SIZE = 20;
 
 interface CollectResult {
   searched: boolean;
   processed: number[];
-  skipped: number;
   entries: DigestEntry[];
   failures: DigestFailure[];
-  notes: string[];
 }
 
 export async function run(env: Env, now: Date): Promise<RunSummary> {
   const config = await loadConfig(env);
   const watchers = resolveWatchers(config);
-  const aiLimit = maxAiChecks(config);
   const until = now.toISOString();
   const settled: string[] = [];
   const processed = new Map<string, number[]>();
   const entries: DigestEntry[] = [];
   const failures: DigestFailure[] = [];
-  const notes: string[] = [];
-  let skipped = 0;
 
   const collected = await Promise.all(
-    watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, now, until, aiLimit) })),
+    watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, now, until) })),
   );
 
   for (const { watcher, result } of collected) {
     processed.set(watcher.repo, result.processed);
-    skipped += result.skipped;
     entries.push(...result.entries);
     failures.push(...result.failures);
-    notes.push(...result.notes);
     if (result.searched) settled.push(watcher.repo);
   }
 
   const shouldEmail = entries.length > 0 || failures.length > 0;
-  if (shouldEmail) await deliver(env, config, entries, failures, notes, now);
+  if (shouldEmail) await deliver(env, config, entries, failures, now);
 
   await Promise.all(
     [...processed].map(([repo, numbers]) => (numbers.length > 0 ? markSeen(env, repo, numbers) : Promise.resolve())),
@@ -68,7 +62,6 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
     emailed: shouldEmail,
     errors: failures,
     hits: entries.map((entry) => ({ repo: entry.repo, number: entry.issue.number, source: entry.source })),
-    skipped,
   };
 }
 
@@ -77,16 +70,8 @@ async function collect(
   watcher: ResolvedWatcher,
   now: Date,
   until: string,
-  aiLimit: number,
 ): Promise<CollectResult> {
-  const result: CollectResult = {
-    searched: false,
-    processed: [],
-    skipped: 0,
-    entries: [],
-    failures: [],
-    notes: [],
-  };
+  const result: CollectResult = { searched: false, processed: [], entries: [], failures: [] };
 
   try {
     const cursor = await getCursor(env, watcher.repo);
@@ -94,7 +79,7 @@ async function collect(
     const issues = await searchIssuesSince(env, { repo: watcher.repo, since, until });
     result.searched = true;
 
-    let aiChecks = 0;
+    const unmatched: Issue[] = [];
     for (const issue of await dropSeen(env, watcher.repo, issues)) {
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
@@ -102,38 +87,33 @@ async function collect(
         result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, notify: watcher.notify });
         continue;
       }
-
-      if (!watcher.ai) {
-        result.processed.push(issue.number);
-        continue;
-      }
-
-      if (aiChecks >= aiLimit) {
-        result.skipped++;
-        continue;
-      }
-
-      aiChecks++;
-
-      try {
-        const verdict = await judgeIssue(env, {
-          issue,
-          interest: watcher.interest,
-          model: watcher.model,
-          session: `gh-issue-watcher:${watcher.repo}`,
-        });
-        result.processed.push(issue.number);
-        if (verdict.relevant) {
-          result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
-        }
-      } catch (error) {
-        result.failures.push({ repo: watcher.repo, message: `AI: #${issue.number} ${errorMessage(error)}` });
-        console.error(`[${watcher.repo}] AI check failed for #${issue.number}: ${errorMessage(error)}`);
-      }
+      unmatched.push(issue);
     }
 
-    if (result.skipped > 0) {
-      result.notes.push(`${watcher.repo}: ${result.skipped} issues skipped by the AI cap of ${aiLimit}`);
+    if (!watcher.ai) {
+      result.processed.push(...unmatched.map((issue) => issue.number));
+    } else {
+      const session = `gh-issue-watcher:${watcher.repo}`;
+      for (const batch of chunk(unmatched, AI_BATCH_SIZE)) {
+        try {
+          const verdicts = await judgeIssues(env, {
+            issues: batch,
+            interest: watcher.interest,
+            model: watcher.model,
+            session,
+          });
+          for (const issue of batch) {
+            result.processed.push(issue.number);
+            const verdict = verdicts.get(issue.number);
+            if (verdict?.relevant) {
+              result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
+            }
+          }
+        } catch (error) {
+          result.failures.push({ repo: watcher.repo, message: `AI batch of ${batch.length}: ${errorMessage(error)}` });
+          console.error(`[${watcher.repo}] AI batch of ${batch.length} failed: ${errorMessage(error)}`);
+        }
+      }
     }
   } catch (error) {
     result.failures.push({ repo: watcher.repo, message: errorMessage(error) });
@@ -141,6 +121,14 @@ async function collect(
   }
 
   return result;
+}
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
 }
 
 async function dropSeen(env: Env, repo: string, issues: Issue[]): Promise<Issue[]> {
@@ -153,7 +141,6 @@ async function deliver(
   config: Config,
   entries: DigestEntry[],
   failures: DigestFailure[],
-  notes: string[],
   now: Date,
 ): Promise<void> {
   const groups = groupByRecipient(entries);
@@ -170,12 +157,7 @@ async function deliver(
 
   for (const group of groups.values()) {
     if (group.entries.length === 0 && !group.extras) continue;
-    const digest = renderDigest(
-      group.entries,
-      group.extras ? failures : [],
-      group.extras ? notes : [],
-      now,
-    );
+    const digest = renderDigest(group.entries, group.extras ? failures : [], now);
     await sendEmail(env, {
       to: group.notify.to,
       from: group.notify.from,

@@ -46,7 +46,7 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   }
 
   const shouldEmail = entries.length > 0;
-  if (shouldEmail) await deliver(env, entries, now);
+  if (shouldEmail) await deliver(env, config.defaults.notify, entries, now);
 
   if (collected.some(({ result }) => result.searched)) await putCursor(env, until);
 
@@ -77,7 +77,7 @@ async function collect(
     for (const issue of issues) {
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
-        result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, notify: watcher.notify });
+        result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, });
         continue;
       }
       unmatched.push(issue);
@@ -94,7 +94,7 @@ async function collect(
         for (const issue of unmatched) {
           const verdict = verdicts.get(issue.number);
           if (verdict?.relevant) {
-            result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
+            result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, });
           }
         }
       } catch (error) {
@@ -110,37 +110,20 @@ async function collect(
   return result;
 }
 
-async function deliver(env: Env, entries: DigestEntry[], now: Date): Promise<void> {
-  for (const group of groupByRecipient(entries).values()) {
-    const digest = renderDigest(group.entries, now);
-    await sendEmail(env, {
-      to: group.notify.to,
-      from: group.notify.from,
-      subject: digest.subject,
-      text: digest.text,
-      html: digest.html,
-    });
-  }
-}
-
-interface RecipientGroup {
-  notify: { to: string; from: string };
-  entries: DigestEntry[];
-}
-
-function groupByRecipient(entries: DigestEntry[]): Map<string, RecipientGroup> {
-  const groups = new Map<string, RecipientGroup>();
-  for (const entry of entries) {
-    const key = recipientKey(entry.notify);
-    const group = groups.get(key) ?? { notify: entry.notify, entries: [] };
-    group.entries.push(entry);
-    groups.set(key, group);
-  }
-  return groups;
-}
-
-function recipientKey(notify: { to: string; from: string }): string {
-  return `${notify.to}\u0000${notify.from}`;
+async function deliver(
+  env: Env,
+  notify: { to: string; from: string },
+  entries: DigestEntry[],
+  now: Date,
+): Promise<void> {
+  const digest = renderDigest(entries, now);
+  await sendEmail(env, {
+    to: notify.to,
+    from: notify.from,
+    subject: digest.subject,
+    text: digest.text,
+    html: digest.html,
+  });
 }
 
 function matchedLabel(issue: Issue, labels: string[]): string | null {

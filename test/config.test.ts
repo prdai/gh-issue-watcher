@@ -39,8 +39,6 @@ watchers:
     labels: ["Bug", "good first issue"]
     ai: true
     model: watcher-model
-    notify:
-      to: other@example.com
 `);
     const [watcher] = resolveWatchers(config);
     expect(watcher).toEqual({
@@ -49,7 +47,6 @@ watchers:
       ai: true,
       model: "watcher-model",
       interest: "default interest",
-      notify: { to: "other@example.com", from: "issues@example.com" },
     });
   });
 

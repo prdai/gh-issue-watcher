@@ -26,7 +26,6 @@ const watcherSchema = z
     ai: z.boolean().optional(),
     model: z.string().trim().min(1).optional(),
     interest: z.string().trim().min(1).optional(),
-    notify: notifySchema.partial().optional(),
   })
   .strict();
 
@@ -66,7 +65,6 @@ export interface ResolvedWatcher {
   ai: boolean;
   model: string;
   interest: string | null;
-  notify: { to: string; from: string };
 }
 
 export function parseConfig(value: unknown): Config {
@@ -80,9 +78,5 @@ export function resolveWatchers(config: Config): ResolvedWatcher[] {
     ai: watcher.ai ?? config.defaults.ai.enabled,
     model: watcher.model ?? config.defaults.ai.model,
     interest: watcher.interest ?? config.defaults.interest ?? null,
-    notify: {
-      to: watcher.notify?.to ?? config.defaults.notify.to,
-      from: watcher.notify?.from ?? config.defaults.notify.from,
-    },
   }));
 }

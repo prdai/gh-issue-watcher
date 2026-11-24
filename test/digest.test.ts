@@ -11,7 +11,6 @@ function entry(overrides: Partial<DigestEntry> = {}): DigestEntry {
     source: "label",
     label: "bug",
     reason: null,
-    notify: { to: "dest@example.com", from: "issues@example.com" },
     ...overrides,
   };
 }

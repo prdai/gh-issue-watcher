@@ -54,7 +54,8 @@ watchers:
 | `ai` | no | Per-watcher override of `defaults.ai.enabled` |
 | `model` | no | Per-watcher override of `defaults.ai.model` |
 | `interest` | no | What counts as relevant. Falls back to `defaults.interest` |
-| `notify` | no | Per-watcher override of the recipient and sender |
+
+`defaults.notify` is the single recipient pair for every watcher. There are no per-watcher recipient overrides.
 
 The AI gate only runs on issues that did not match a label, because a label hit already notifies. All unmatched issues in the window go to the model in a single request per repo.
 

@@ -6,7 +6,6 @@ export interface DigestEntry {
   source: "label" | "ai";
   label: string | null;
   reason: string | null;
-  notify: { to: string; from: string };
 }
 
 export interface Digest {

@@ -40,7 +40,3 @@ Match the surrounding code. Add a comment only when the reason for the code is n
 ## Code of conduct
 
 This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold it.
-
-## Credit
-
-The structure of this file is adapted from [YasogaN/google-maps-review-scraper](https://github.com/YasogaN/google-maps-review-scraper/blob/main/CONTRIBUTING.md).

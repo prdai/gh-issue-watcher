@@ -146,5 +146,3 @@ Bug reports, changes, and questions go through the process in [CONTRIBUTING.md](
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-The community files (license, contributing guide, code of conduct) follow the layout of [YasogaN/google-maps-review-scraper](https://github.com/YasogaN/google-maps-review-scraper).

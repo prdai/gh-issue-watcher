@@ -8,7 +8,7 @@ Runs as a single Cloudflare Worker on a Cron Trigger. State lives in Workers KV.
 
 Every cron tick, for each watched repo:
 
-1. Reads the last-run cursor from KV and asks GitHub for issues created since then.
+1. Reads the shared last-run cursor from KV and asks each repo for issues created since then.
 2. Matches each issue against that repo's watched labels.
 3. Optionally asks an LLM whether an unmatched issue is relevant to the repo's stated interest.
 4. Sends one email per run with the shortlist.
@@ -21,9 +21,9 @@ An issue notifies when it matches a watched label or the AI marks it relevant.
 | --- | --- | --- |
 | Scheduler | Cloudflare Cron Trigger | No server to keep alive, native retry semantics, hourly cadence is free |
 | Config | `watchers.yaml` in the repo, synced to KV on deploy | Reviewable in PRs, no dashboard editing, one source of truth |
-| State | Workers KV | Cursor per repo plus dedupe keys with TTL |
-| GitHub access | Fine-grained PAT stored as a Worker secret | Raises the search API limit from 10 to 30 requests per minute and supports private repos |
-| AI gate | OpenCode Go, OpenAI-compatible API | Cheap per-token pricing, one key, model selectable per watcher |
+| State | Workers KV | One shared cursor, nothing else |
+| GitHub access | Octokit with a PAT in a Worker secret | Typed client, pagination, and errors; raises the search limit from 10 to 30 requests per minute |
+| AI gate | AI SDK on the OpenCode Go endpoint | Typed `Output.object` schema, cheap per-token pricing, model selectable per watcher |
 | Email | `send_email` binding | Native, free to verified destination addresses, no third-party signup |
 
 ## Configuration
@@ -54,13 +54,14 @@ watchers:
 | `ai` | no | Per-watcher override of `defaults.ai.enabled` |
 | `model` | no | Per-watcher override of `defaults.ai.model` |
 | `interest` | no | What counts as relevant. Falls back to `defaults.interest` |
-| `notify` | no | Per-watcher override of the recipient and sender |
 
-The AI gate only runs on issues that did not match a label, because a label hit already notifies. This keeps token spend proportional to unmatched volume.
+`defaults.notify` is the single recipient pair for every watcher. There are no per-watcher recipient overrides.
+
+The AI gate only runs on issues that did not match a label, because a label hit already notifies. All unmatched issues in the window go to the model in a single request per repo.
 
 ## Setup
 
-Prerequisites: a Cloudflare account with a zone on Email Routing, a verified destination address, `bun`, and `wrangler` logged in.
+Prerequisites: a Cloudflare account with a zone on Email Routing, a verified destination address, Bun for install and the config scripts, and `wrangler` logged in.
 
 ```sh
 bun install
@@ -89,33 +90,42 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 | Action | Command |
 | --- | --- |
 | Validate and upload config | `bun run sync-config` |
-| Dry-run the config parser | `bun run sync-config --check` |
 | Trigger a run now | `curl -X POST https://<worker-url>/run -H "Authorization: Bearer $RUN_TOKEN"` |
-| Inspect KV cursors | `wrangler kv key get cursor:facebook/react --binding CONFIG --remote` |
+| Inspect the cursor | `wrangler kv key get cursor --binding CONFIG --remote` |
 | Tail logs | `wrangler tail` |
 
 ## Limits and behavior
 
-- Cursor semantics are "created since the previous run". Edits and comments to existing issues are not picked up.
+- Cursor semantics are strictly "created since the previous successful check". Edits and comments to existing issues are not picked up. The first run looks back one hour.
+- One cursor covers every watched repo. It advances to the run start when at least one repo search succeeded, even if an AI batch failed.
+- If every repo search fails, the cursor stays put and the same window is retried. If only some fail, their window for that run is skipped; the failure is logged and returned by `/run`, not emailed.
+- The next window starts one second after the cursor, so an issue is never fetched twice and no per-issue state is stored.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
-- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line. The cursor still advances.
-- Dedupe keys expire after 30 days. The same issue is never emailed twice while the key is live.
+- AI failures are fail-closed: the batch is not reported, the error is logged with the repo and issue count, and the window still advances. Failures never trigger or appear in an email.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
+
+## OpenCode Go client requirements
+
+OpenCode Go asks clients to identify themselves and send a stable session id for routing. The Worker sends `user-agent: gh-issue-watcher/0.1` and one `x-opencode-session` per repo (`gh-issue-watcher:<owner/name>`).
+
+The plan is intended for coding-agent traffic and is monitored for abuse. This workload is low-volume issue triage, not a coding agent. Confirm that fits the plan terms before relying on it in production; a dedicated inference provider is the fallback if it does not.
 
 ## Cost
 
 - Cloudflare Workers and Cron Triggers: hourly execution fits the free plan.
 - KV: negligible for this write volume.
 - Email to verified destinations: free.
-- AI: only unmatched new issues, one short completion each. At `deepseek-v4.1-flash` pricing this is fractions of a cent per run.
+- AI: only unmatched new issues, sent as one request per repo per window with `reasoning_effort: low`. A three-issue request measures about $0.001 at `deepseek-v4.1-flash` pricing.
 
 ## Repository layout
 
 ```
 src/
   index.ts      scheduled handler and manual trigger
-  config.ts     watchers.yaml schema, validation, KV load
+  run.ts        one run: collect, deliver, settle state
+  config.ts     watchers.yaml schema and defaults
+  state.ts      KV config load and the shared cursor
   github.ts     issue search client
   match.ts      label matching and window arithmetic
   ai.ts         relevance gate
@@ -124,8 +134,11 @@ src/
 scripts/
   sync-config.ts
 test/
+.github/workflows/ci.yml
 ```
 
-## Status
+Tests use a Map-backed KV fake and a stub `fetch`, so they exercise the real run path without network access.
 
-Scaffolding in progress. The README is the first commit; the Worker, tests, and deploy workflow land in the draft PR.
+## License
+
+Unlicensed, private repository.

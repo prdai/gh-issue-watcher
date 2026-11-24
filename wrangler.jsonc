@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gh-issue-watcher",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-22",
+  "account_id": "6503f7d355399abee9e748d3100675d4",
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["0 * * * *"]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "CONFIG",
+      "id": "fe94ab96180346e29ce1078c8d7eeb32"
+    }
+  ],
+  "send_email": [
+    {
+      "name": "EMAIL",
+      "allowed_destination_addresses": ["go2ranuga@gmail.com"],
+      "allowed_sender_addresses": ["issues@prdai.dev"]
+    }
+  ]
+}

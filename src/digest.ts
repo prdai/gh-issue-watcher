@@ -9,34 +9,28 @@ export interface DigestEntry {
   notify: { to: string; from: string };
 }
 
-export interface DigestFailure {
-  repo: string;
-  message: string;
-}
-
 export interface Digest {
   subject: string;
   text: string;
   html: string;
 }
 
-export function renderDigest(entries: DigestEntry[], failures: DigestFailure[], now: Date): Digest {
+export function renderDigest(entries: DigestEntry[], now: Date): Digest {
   return {
-    subject: subjectFor(entries, failures),
-    text: textFor(entries, failures, now),
-    html: htmlFor(entries, failures, now),
+    subject: subjectFor(entries),
+    text: textFor(entries, now),
+    html: htmlFor(entries, now),
   };
 }
 
-function subjectFor(entries: DigestEntry[], failures: DigestFailure[]): string {
+function subjectFor(entries: DigestEntry[]): string {
   const repos = new Set(entries.map((entry) => entry.repo));
   const issues = `${entries.length} ${entries.length === 1 ? "issue" : "issues"}`;
   const repoPart = `${repos.size} ${repos.size === 1 ? "repo" : "repos"}`;
-  const failurePart = failures.length > 0 ? ` (${failures.length} ${failures.length === 1 ? "failure" : "failures"})` : "";
-  return `gh-issue-watcher: ${issues} in ${repoPart}${failurePart}`;
+  return `gh-issue-watcher: ${issues} in ${repoPart}`;
 }
 
-function textFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): string {
+function textFor(entries: DigestEntry[], now: Date): string {
   const lines = [`gh-issue-watcher run ${now.toISOString()}`, ""];
 
   for (const [repo, group] of groupByRepo(entries)) {
@@ -52,16 +46,10 @@ function textFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): 
 
   if (entries.length === 0) lines.push("No issues matched.", "");
 
-  if (failures.length > 0) {
-    lines.push("Failures");
-    for (const failure of failures) lines.push(`  ${failure.repo}: ${failure.message}`);
-    lines.push("");
-  }
-
   return lines.join("\n").trimEnd() + "\n";
 }
 
-function htmlFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): string {
+function htmlFor(entries: DigestEntry[], now: Date): string {
   const parts = [`<p>gh-issue-watcher run ${escapeHtml(now.toISOString())}</p>`];
 
   for (const [repo, group] of groupByRepo(entries)) {
@@ -77,14 +65,6 @@ function htmlFor(entries: DigestEntry[], failures: DigestFailure[], now: Date): 
   }
 
   if (entries.length === 0) parts.push("<p>No issues matched.</p>");
-
-  if (failures.length > 0) {
-    parts.push("<h2>Failures</h2><ul>");
-    for (const failure of failures) {
-      parts.push(`<li>${escapeHtml(failure.repo)}: ${escapeHtml(failure.message)}</li>`);
-    }
-    parts.push("</ul>");
-  }
 
   return parts.join("\n");
 }

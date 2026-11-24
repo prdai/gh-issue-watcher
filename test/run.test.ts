@@ -84,9 +84,10 @@ describe("run", () => {
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
-    expect(test.sent[0]?.text).toContain("owner/repo: GitHub 403");
-    expect(test.sent[0]?.text).toContain("limit resets 2026-11-18T11:06:40.000Z");
+    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: false });
+    expect(summary.errors[0]?.message).toContain("GitHub 403");
+    expect(summary.errors[0]?.message).toContain("limit resets 2026-11-18T11:06:40.000Z");
+    expect(test.sent).toHaveLength(0);
     expect(test.store.has("cursor")).toBe(false);
   });
 
@@ -104,7 +105,7 @@ describe("run", () => {
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
+    expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: false });
     expect(summary.errors[0]?.message).toContain("AI batch of 1");
     expect(test.store.get("cursor")).toBe(now.toISOString());
   });
@@ -162,7 +163,7 @@ describe("run", () => {
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ repos: 2, failures: 1, emailed: true });
+    expect(summary).toMatchObject({ repos: 2, failures: 1, emailed: false });
     expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 

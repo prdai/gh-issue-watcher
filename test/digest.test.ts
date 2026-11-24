@@ -18,21 +18,17 @@ function entry(overrides: Partial<DigestEntry> = {}): DigestEntry {
 
 describe("renderDigest", () => {
   it("pluralizes the subject and counts repos", () => {
-    expect(renderDigest([entry()], [], now).subject).toBe("gh-issue-watcher: 1 issue in 1 repo");
+    expect(renderDigest([entry()], now).subject).toBe("gh-issue-watcher: 1 issue in 1 repo");
 
     const many = [entry(), entry({ issue: makeIssue(13) }), entry({ repo: "other/repo" })];
-    expect(renderDigest(many, [], now).subject).toBe("gh-issue-watcher: 3 issues in 2 repos");
+    expect(renderDigest(many, now).subject).toBe("gh-issue-watcher: 3 issues in 2 repos");
   });
 
-  it("adds failures to the subject", () => {
-    const digest = renderDigest([], [{ repo: "owner/repo", message: "boom" }], now);
-    expect(digest.subject).toBe("gh-issue-watcher: 0 issues in 0 repos (1 failure)");
-  });
+
 
   it("lists issues with their source and link", () => {
     const digest = renderDigest(
       [entry(), entry({ source: "ai", label: null, reason: "matches the interest" })],
-      [],
       now,
     );
 
@@ -42,17 +38,9 @@ describe("renderDigest", () => {
     expect(digest.text).toContain("why: matches the interest");
   });
 
-  it("includes a failure section", () => {
-    const digest = renderDigest([], [{ repo: "owner/repo", message: "GitHub 403" }], now);
-
-    expect(digest.text).toContain("No issues matched.");
-    expect(digest.text).toContain("Failures\n  owner/repo: GitHub 403");
-  });
-
   it("escapes HTML in titles and reasons", () => {
     const digest = renderDigest(
       [entry({ issue: makeIssue(1, { title: "<script>alert(1)</script>" }), reason: "<b>yes</b>" })],
-      [],
       now,
     );
 

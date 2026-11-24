@@ -1,11 +1,16 @@
 import { judgeIssues } from "./ai.ts";
-import { resolveWatchers, type Config, type ResolvedWatcher } from "./config.ts";
-import { renderDigest, type DigestEntry, type DigestFailure } from "./digest.ts";
+import { resolveWatchers, type ResolvedWatcher } from "./config.ts";
+import { renderDigest, type DigestEntry } from "./digest.ts";
 import { sendEmail } from "./email.ts";
 import type { Env } from "./env.ts";
 import { searchIssuesSince, type Issue } from "./github.ts";
 import { windowStart } from "./match.ts";
 import { getCursor, loadConfig, putCursor } from "./state.ts";
+
+export interface RunFailure {
+  repo: string;
+  message: string;
+}
 
 export interface RunSummary {
   ranAt: string;
@@ -13,7 +18,7 @@ export interface RunSummary {
   issues: number;
   failures: number;
   emailed: boolean;
-  errors: DigestFailure[];
+  errors: RunFailure[];
   hits: { repo: string; number: number; source: "label" | "ai" }[];
 }
 
@@ -22,7 +27,7 @@ const AI_BATCH_SIZE = 20;
 interface CollectResult {
   searched: boolean;
   entries: DigestEntry[];
-  failures: DigestFailure[];
+  failures: RunFailure[];
 }
 
 export async function run(env: Env, now: Date): Promise<RunSummary> {
@@ -31,7 +36,7 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   const until = now.toISOString();
   const since = windowStart(await getCursor(env), now).toISOString();
   const entries: DigestEntry[] = [];
-  const failures: DigestFailure[] = [];
+  const failures: RunFailure[] = [];
 
   const collected = await Promise.all(
     watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, since, until) })),
@@ -42,8 +47,8 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
     failures.push(...result.failures);
   }
 
-  const shouldEmail = entries.length > 0 || failures.length > 0;
-  if (shouldEmail) await deliver(env, config, entries, failures, now);
+  const shouldEmail = entries.length > 0;
+  if (shouldEmail) await deliver(env, entries, now);
 
   if (collected.some(({ result }) => result.searched)) await putCursor(env, until);
 
@@ -118,28 +123,9 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks;
 }
 
-async function deliver(
-  env: Env,
-  config: Config,
-  entries: DigestEntry[],
-  failures: DigestFailure[],
-  now: Date,
-): Promise<void> {
-  const groups = groupByRecipient(entries);
-  const defaultKey = recipientKey(config.defaults.notify);
-
-  if (failures.length > 0) {
-    const existing = groups.get(defaultKey);
-    groups.set(defaultKey, {
-      notify: config.defaults.notify,
-      entries: existing?.entries ?? [],
-      extras: true,
-    });
-  }
-
-  for (const group of groups.values()) {
-    if (group.entries.length === 0 && !group.extras) continue;
-    const digest = renderDigest(group.entries, group.extras ? failures : [], now);
+async function deliver(env: Env, entries: DigestEntry[], now: Date): Promise<void> {
+  for (const group of groupByRecipient(entries).values()) {
+    const digest = renderDigest(group.entries, now);
     await sendEmail(env, {
       to: group.notify.to,
       from: group.notify.from,
@@ -153,7 +139,6 @@ async function deliver(
 interface RecipientGroup {
   notify: { to: string; from: string };
   entries: DigestEntry[];
-  extras?: boolean;
 }
 
 function groupByRecipient(entries: DigestEntry[]): Map<string, RecipientGroup> {

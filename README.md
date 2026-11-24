@@ -97,11 +97,11 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 
 - Cursor semantics are strictly "created since the previous successful check". Edits and comments to existing issues are not picked up. The first run looks back one hour.
 - One cursor covers every watched repo. It advances to the run start when at least one repo search succeeded, even if an AI batch failed.
-- If every repo search fails, the cursor stays put and the same window is retried. If only some fail, their window for that run is skipped; the failure is named in the digest.
+- If every repo search fails, the cursor stays put and the same window is retried. If only some fail, their window for that run is skipped; the failure is logged and returned by `/run`, not emailed.
 - The next window starts one second after the cursor, so an issue is never fetched twice and no per-issue state is stored.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
-- AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line naming the issue number. The window still advances, so the issue is not revisited.
+- AI failures are fail-closed: the batch is not reported, the error is logged with the repo and batch size, and the window still advances. Failures never trigger or appear in an email.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 
 ## OpenCode Go client requirements

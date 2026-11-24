@@ -139,6 +139,10 @@ test/
 
 Tests use a Map-backed KV fake and a stub `fetch`, so they exercise the real run path without network access.
 
+## Contributing
+
+Bug reports, changes, and questions go through the process in [CONTRIBUTING.md](CONTRIBUTING.md). Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
-Unlicensed, private repository.
+MIT. See [LICENSE](LICENSE).

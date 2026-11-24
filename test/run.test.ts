@@ -64,12 +64,7 @@ describe("run", () => {
     expect(test.sent[0]?.to).toBe("dest@example.com");
     expect(test.sent[0]?.subject).toBe("gh-issue-watcher: 3 issues in 1 repo");
     expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
-    expect(test.store.get("seen:owner/repo:1")).toBe("1");
-    expect(test.store.get("seen:owner/repo:2")).toBe("1");
-
-    const second = await run(test.env, new Date(now.getTime() + 3600_000));
-    expect(second).toMatchObject({ issues: 0, emailed: false });
-    expect(test.sent).toHaveLength(1);
+    expect(test.store.size).toBe(2);
   });
 
   it("does not email when nothing matches", async () => {
@@ -112,7 +107,6 @@ describe("run", () => {
     expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
     expect(summary.errors[0]?.message).toContain("AI batch of 1");
     expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
-    expect(test.store.has("seen:owner/repo:9")).toBe(false);
   });
 
   it("batches unmatched issues instead of calling the model per issue", async () => {

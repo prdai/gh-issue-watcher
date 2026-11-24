@@ -27,8 +27,8 @@ describe("matchesAnyLabel", () => {
 describe("windowStart", () => {
   const now = new Date("2026-11-22T12:00:00Z");
 
-  it("uses the cursor when present", () => {
-    expect(windowStart("2026-11-22T05:00:00.000Z", now).toISOString()).toBe("2026-11-22T05:00:00.000Z");
+  it("starts one second after the cursor", () => {
+    expect(windowStart("2026-11-22T05:00:00.000Z", now).toISOString()).toBe("2026-11-22T05:00:01.000Z");
   });
 
   it("falls back to the initial lookback without a cursor", () => {

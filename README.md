@@ -21,7 +21,7 @@ An issue notifies when it matches a watched label or the AI marks it relevant.
 | --- | --- | --- |
 | Scheduler | Cloudflare Cron Trigger | No server to keep alive, native retry semantics, hourly cadence is free |
 | Config | `watchers.yaml` in the repo, synced to KV on deploy | Reviewable in PRs, no dashboard editing, one source of truth |
-| State | Workers KV | Cursor per repo plus dedupe keys with TTL |
+| State | Workers KV | One cursor per repo, nothing else |
 | GitHub access | Octokit with a PAT in a Worker secret | Typed client, pagination, and errors; raises the search limit from 10 to 30 requests per minute |
 | AI gate | AI SDK on the OpenCode Go endpoint | Typed `Output.object` schema, cheap per-token pricing, model selectable per watcher |
 | Email | `send_email` binding | Native, free to verified destination addresses, no third-party signup |
@@ -97,11 +97,10 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 
 - Cursor semantics are strictly "created since the previous successful check". Edits and comments to existing issues are not picked up. The first run looks back one hour.
 - The cursor advances to the run start once the search succeeds, even if an AI batch failed. A failed search leaves the cursor alone so the same window is retried.
+- The next window starts one second after the cursor, so an issue is never fetched twice and no per-issue state is stored.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
 - AI failures are fail-closed: the issue is not reported by the AI branch and the digest carries an error line naming the issue number. The window still advances, so the issue is not revisited.
-- AI-rejected issues are recorded as processed for the boundary overlap between runs, which prevents duplicate emails.
-- Dedupe keys expire after 30 days. The same issue is never emailed twice while the key is live.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 
 ## OpenCode Go client requirements
@@ -124,7 +123,7 @@ src/
   index.ts      scheduled handler and manual trigger
   run.ts        one run: collect, deliver, settle state
   config.ts     watchers.yaml schema and defaults
-  state.ts      KV config load, cursors, dedupe keys
+  state.ts      KV config load and cursors
   github.ts     issue search client
   match.ts      label matching and window arithmetic
   ai.ts         relevance gate

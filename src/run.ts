@@ -5,7 +5,7 @@ import { sendEmail } from "./email.ts";
 import type { Env } from "./env.ts";
 import { searchIssuesSince, type Issue } from "./github.ts";
 import { windowStart } from "./match.ts";
-import { getCursor, isSeen, loadConfig, markSeen, putCursor } from "./state.ts";
+import { getCursor, loadConfig, putCursor } from "./state.ts";
 
 export interface RunSummary {
   ranAt: string;
@@ -21,7 +21,6 @@ const AI_BATCH_SIZE = 20;
 
 interface CollectResult {
   searched: boolean;
-  processed: number[];
   entries: DigestEntry[];
   failures: DigestFailure[];
 }
@@ -31,7 +30,6 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   const watchers = resolveWatchers(config);
   const until = now.toISOString();
   const settled: string[] = [];
-  const processed = new Map<string, number[]>();
   const entries: DigestEntry[] = [];
   const failures: DigestFailure[] = [];
 
@@ -40,7 +38,6 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   );
 
   for (const { watcher, result } of collected) {
-    processed.set(watcher.repo, result.processed);
     entries.push(...result.entries);
     failures.push(...result.failures);
     if (result.searched) settled.push(watcher.repo);
@@ -49,9 +46,6 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   const shouldEmail = entries.length > 0 || failures.length > 0;
   if (shouldEmail) await deliver(env, config, entries, failures, now);
 
-  await Promise.all(
-    [...processed].map(([repo, numbers]) => (numbers.length > 0 ? markSeen(env, repo, numbers) : Promise.resolve())),
-  );
   await Promise.all(settled.map((repo) => putCursor(env, repo, until)));
 
   return {
@@ -71,7 +65,7 @@ async function collect(
   now: Date,
   until: string,
 ): Promise<CollectResult> {
-  const result: CollectResult = { searched: false, processed: [], entries: [], failures: [] };
+  const result: CollectResult = { searched: false, entries: [], failures: [] };
 
   try {
     const cursor = await getCursor(env, watcher.repo);
@@ -80,19 +74,16 @@ async function collect(
     result.searched = true;
 
     const unmatched: Issue[] = [];
-    for (const issue of await dropSeen(env, watcher.repo, issues)) {
+    for (const issue of issues) {
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
-        result.processed.push(issue.number);
         result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, notify: watcher.notify });
         continue;
       }
       unmatched.push(issue);
     }
 
-    if (!watcher.ai) {
-      result.processed.push(...unmatched.map((issue) => issue.number));
-    } else {
+    if (watcher.ai) {
       const session = `gh-issue-watcher:${watcher.repo}`;
       for (const batch of chunk(unmatched, AI_BATCH_SIZE)) {
         try {
@@ -103,7 +94,6 @@ async function collect(
             session,
           });
           for (const issue of batch) {
-            result.processed.push(issue.number);
             const verdict = verdicts.get(issue.number);
             if (verdict?.relevant) {
               result.entries.push({ repo: watcher.repo, issue, source: "ai", label: null, reason: verdict.reason, notify: watcher.notify });
@@ -129,11 +119,6 @@ function chunk<T>(items: T[], size: number): T[][] {
     chunks.push(items.slice(index, index + size));
   }
   return chunks;
-}
-
-async function dropSeen(env: Env, repo: string, issues: Issue[]): Promise<Issue[]> {
-  const checks = await Promise.all(issues.map((issue) => isSeen(env, repo, issue.number)));
-  return issues.filter((_, index) => !checks[index]);
 }
 
 async function deliver(

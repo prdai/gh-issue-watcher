@@ -8,7 +8,7 @@ Runs as a single Cloudflare Worker on a Cron Trigger. State lives in Workers KV.
 
 Every cron tick, for each watched repo:
 
-1. Reads the last-run cursor from KV and asks GitHub for issues created since then.
+1. Reads the shared last-run cursor from KV and asks each repo for issues created since then.
 2. Matches each issue against that repo's watched labels.
 3. Optionally asks an LLM whether an unmatched issue is relevant to the repo's stated interest.
 4. Sends one email per run with the shortlist.
@@ -21,7 +21,7 @@ An issue notifies when it matches a watched label or the AI marks it relevant.
 | --- | --- | --- |
 | Scheduler | Cloudflare Cron Trigger | No server to keep alive, native retry semantics, hourly cadence is free |
 | Config | `watchers.yaml` in the repo, synced to KV on deploy | Reviewable in PRs, no dashboard editing, one source of truth |
-| State | Workers KV | One cursor per repo, nothing else |
+| State | Workers KV | One shared cursor, nothing else |
 | GitHub access | Octokit with a PAT in a Worker secret | Typed client, pagination, and errors; raises the search limit from 10 to 30 requests per minute |
 | AI gate | AI SDK on the OpenCode Go endpoint | Typed `Output.object` schema, cheap per-token pricing, model selectable per watcher |
 | Email | `send_email` binding | Native, free to verified destination addresses, no third-party signup |
@@ -90,13 +90,14 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 | --- | --- |
 | Validate and upload config | `bun run sync-config` |
 | Trigger a run now | `curl -X POST https://<worker-url>/run -H "Authorization: Bearer $RUN_TOKEN"` |
-| Inspect KV cursors | `wrangler kv key get cursor:facebook/react --binding CONFIG --remote` |
+| Inspect the cursor | `wrangler kv key get cursor --binding CONFIG --remote` |
 | Tail logs | `wrangler tail` |
 
 ## Limits and behavior
 
 - Cursor semantics are strictly "created since the previous successful check". Edits and comments to existing issues are not picked up. The first run looks back one hour.
-- The cursor advances to the run start once the search succeeds, even if an AI batch failed. A failed search leaves the cursor alone so the same window is retried.
+- One cursor covers every watched repo. It advances to the run start when at least one repo search succeeded, even if an AI batch failed.
+- If every repo search fails, the cursor stays put and the same window is retried. If only some fail, their window for that run is skipped; the failure is named in the digest.
 - The next window starts one second after the cursor, so an issue is never fetched twice and no per-issue state is stored.
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
@@ -123,7 +124,7 @@ src/
   index.ts      scheduled handler and manual trigger
   run.ts        one run: collect, deliver, settle state
   config.ts     watchers.yaml schema and defaults
-  state.ts      KV config load and cursors
+  state.ts      KV config load and the shared cursor
   github.ts     issue search client
   match.ts      label matching and window arithmetic
   ai.ts         relevance gate

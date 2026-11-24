@@ -63,7 +63,7 @@ describe("run", () => {
     expect(test.sent).toHaveLength(1);
     expect(test.sent[0]?.to).toBe("dest@example.com");
     expect(test.sent[0]?.subject).toBe("gh-issue-watcher: 3 issues in 1 repo");
-    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+    expect(test.store.get("cursor")).toBe(now.toISOString());
     expect(test.store.size).toBe(2);
   });
 
@@ -75,7 +75,7 @@ describe("run", () => {
 
     expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false });
     expect(test.sent).toHaveLength(0);
-    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+    expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
   it("reports a GitHub failure and leaves the cursor behind", async () => {
@@ -87,7 +87,7 @@ describe("run", () => {
     expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
     expect(test.sent[0]?.text).toContain("owner/repo: GitHub 403");
     expect(test.sent[0]?.text).toContain("limit resets 2026-11-18T11:06:40.000Z");
-    expect(test.store.has("cursor:owner/repo")).toBe(false);
+    expect(test.store.has("cursor")).toBe(false);
   });
 
   it("advances the window even when an AI check fails", async () => {
@@ -106,7 +106,7 @@ describe("run", () => {
 
     expect(summary).toMatchObject({ issues: 0, failures: 1, emailed: true });
     expect(summary.errors[0]?.message).toContain("AI batch of 1");
-    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+    expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
   it("batches unmatched issues instead of calling the model per issue", async () => {
@@ -119,7 +119,7 @@ describe("run", () => {
     expect(summary).toMatchObject({ issues: 0, failures: 0, emailed: false });
     const aiCalls = vi.mocked(fetch).mock.calls.filter(([input]) => String(input).includes("opencode.ai"));
     expect(aiCalls).toHaveLength(2);
-    expect(test.store.get("cursor:owner/repo")).toBe(now.toISOString());
+    expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
   it("keeps label matches out of the AI batch", async () => {
@@ -134,6 +134,36 @@ describe("run", () => {
     const prompt = JSON.stringify(body.messages);
     expect(prompt).toContain("### 2");
     expect(prompt).not.toContain("### 1");
+  });
+
+  it("advances the shared cursor when only some watchers succeed", async () => {
+    const test = testEnv();
+    await test.env.CONFIG.put(
+      "config:watchers",
+      JSON.stringify({
+        defaults: {
+          ai: { enabled: false, model: "m" },
+          notify: { to: "dest@example.com", from: "issues@example.com" },
+        },
+        watchers: [
+          { repo: "owner/one", labels: ["bug"] },
+          { repo: "owner/two", labels: ["bug"] },
+        ],
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const q = new URL(String(input)).searchParams.get("q") ?? "";
+        if (q.startsWith("repo:owner/two")) return new Response("boom", { status: 500 });
+        return jsonResponse({ total_count: 0, items: [] });
+      }),
+    );
+
+    const summary = await run(test.env, now);
+
+    expect(summary).toMatchObject({ repos: 2, failures: 1, emailed: true });
+    expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
   it("collects watchers concurrently and keeps their results ordered", async () => {
@@ -167,8 +197,7 @@ describe("run", () => {
 
     expect(summary).toMatchObject({ repos: 2, issues: 2, failures: 0, emailed: true });
     expect(summary.hits.map((hit) => hit.repo)).toEqual(["owner/one", "owner/two"]);
-    expect(test.store.get("cursor:owner/one")).toBe(now.toISOString());
-    expect(test.store.get("cursor:owner/two")).toBe(now.toISOString());
+    expect(test.store.get("cursor")).toBe(now.toISOString());
   });
 
   it("fails clearly when config is missing", async () => {

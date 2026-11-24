@@ -29,24 +29,23 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
   const config = await loadConfig(env);
   const watchers = resolveWatchers(config);
   const until = now.toISOString();
-  const settled: string[] = [];
+  const since = windowStart(await getCursor(env), now).toISOString();
   const entries: DigestEntry[] = [];
   const failures: DigestFailure[] = [];
 
   const collected = await Promise.all(
-    watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, now, until) })),
+    watchers.map(async (watcher) => ({ watcher, result: await collect(env, watcher, since, until) })),
   );
 
-  for (const { watcher, result } of collected) {
+  for (const { result } of collected) {
     entries.push(...result.entries);
     failures.push(...result.failures);
-    if (result.searched) settled.push(watcher.repo);
   }
 
   const shouldEmail = entries.length > 0 || failures.length > 0;
   if (shouldEmail) await deliver(env, config, entries, failures, now);
 
-  await Promise.all(settled.map((repo) => putCursor(env, repo, until)));
+  if (collected.some(({ result }) => result.searched)) await putCursor(env, until);
 
   return {
     ranAt: until,
@@ -62,14 +61,12 @@ export async function run(env: Env, now: Date): Promise<RunSummary> {
 async function collect(
   env: Env,
   watcher: ResolvedWatcher,
-  now: Date,
+  since: string,
   until: string,
 ): Promise<CollectResult> {
   const result: CollectResult = { searched: false, entries: [], failures: [] };
 
   try {
-    const cursor = await getCursor(env, watcher.repo);
-    const since = windowStart(cursor, now).toISOString();
     const issues = await searchIssuesSince(env, { repo: watcher.repo, since, until });
     result.searched = true;
 

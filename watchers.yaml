@@ -22,13 +22,6 @@ watchers:
       for LLM serving. Ignore large refactors and distributed deployment
       issues that need multi-GPU hardware.
 
-  - repo: ggml-org/llama.cpp
-    labels: ["good first issue"]
-    interest: |
-      Small bugs in the CUDA, Metal, Vulkan, or CPU backends, tokenizer, CLI
-      flags, build, or quantization paths. Ignore model support requests and
-      benchmarking comparisons.
-
   - repo: ollama/ollama
     labels: ["good first issue"]
     interest: |
@@ -44,19 +37,6 @@ watchers:
       inference. Ignore training-only changes, new model additions, and
       issues that need a full benchmark run.
 
-  - repo: huggingface/text-generation-inference
-    labels: ["good first issue"]
-    interest: |
-      Beginner-sized bugs in the inference server, batching, token streaming,
-      or client API. Ignore multi-node deployment and kernel work that needs
-      GPU access.
-
-  - repo: flashinfer-ai/flashinfer
-    labels: ["good first issue"]
-    interest: |
-      Small kernel correctness bugs, missing operator coverage, or example
-      fixes for LLM serving kernels. Ignore large performance tuning work.
-
   - repo: NVIDIA/cutlass
     labels: ["good first issue"]
     interest: |
@@ -70,9 +50,41 @@ watchers:
       Small bugs in model patches, kernel wrappers, or VRAM-saving paths for
       fine-tuning and inference. Ignore training-speed comparisons.
 
-  - repo: ggml-org/whisper.cpp
-    labels: ["good first issue"]
+  - repo: OpenGovMail/OpenGovMail
+    labels: ["good first issue", "help wanted"]
     interest: |
-      Small bugs in the speech inference backends, CLI, or build that a
-      newcomer can reproduce locally. Ignore new model support and benchmark
-      comparisons.
+      Intermediate work on the self-hosted email 2.0 platform, including
+      backend, protocol, and deployment pieces that build on prior
+      contributions. Ignore marketing and docs-only updates.
+
+  - repo: OpenGovMail/raven
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate fixes in the Go IMAP server backed by SQLite: protocol
+      handling, storage, Docker setup, and configuration. Ignore pure
+      dependency bumps.
+
+  - repo: OpenGovMail/quicksilver
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate frontend work in the React + TypeScript offline-first email
+      client: sync, offline behavior, and i18n. Ignore cosmetic redesigns.
+
+  - repo: OpenGovMail/config
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Configuration and deployment fixes for the OpenGovMail stack. Ignore
+      one-off environment tweaks.
+
+  - repo: HarvardMadSys/hybridInference
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate work on the hybrid LLM inference gateway that routes
+      between local GPUs and cloud APIs: routing, workload, and Docker
+      pieces. Ignore benchmark-only comparisons.
+
+  - repo: HarvardMadSys/cloud-agent
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate work on the cloud agent infrastructure used by
+      hybridInference. Ignore experimental spikes.

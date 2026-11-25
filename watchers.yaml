@@ -70,12 +70,6 @@ watchers:
       Intermediate frontend work in the React + TypeScript offline-first email
       client: sync, offline behavior, and i18n. Ignore cosmetic redesigns.
 
-  - repo: OpenGovMail/config
-    labels: ["good first issue", "help wanted"]
-    interest: |
-      Configuration and deployment fixes for the OpenGovMail stack. Ignore
-      one-off environment tweaks.
-
   - repo: HarvardMadSys/hybridInference
     labels: ["good first issue", "help wanted"]
     interest: |

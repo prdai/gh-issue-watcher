@@ -82,3 +82,21 @@ watchers:
     interest: |
       Intermediate work on the cloud agent infrastructure used by
       hybridInference. Ignore experimental spikes.
+
+  - repo: HarvardMadSys/agentic-hpc-dashboard
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate work on the agentic HPC dashboard UI and backend. Ignore
+      cosmetic-only changes.
+
+  - repo: HarvardMadSys/RouteWise
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate work on latency and cost optimization for multi-provider
+      LLM routing. Ignore benchmark-only comparisons.
+
+  - repo: HarvardMadSys/freeinference_agentic_trace
+    labels: ["good first issue", "help wanted"]
+    interest: |
+      Intermediate work on the agent serving trace tooling from
+      freeinference.org. Ignore data-collection-only changes.

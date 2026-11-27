@@ -74,7 +74,8 @@ async function collect(
     result.searched = true;
 
     const unmatched: Issue[] = [];
-    for (const issue of issues) {
+    const candidates = await withoutClosingPullRequests(env, watcher.repo, issues, result);
+    for (const issue of candidates) {
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
         result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, });
@@ -102,26 +103,30 @@ async function collect(
         console.error(`[${watcher.repo}] AI request for ${unmatched.length} issues failed: ${errorMessage(error)}`);
       }
     }
-
-    if (result.entries.length > 0) {
-      try {
-        const linked = await findIssuesWithClosingPullRequests(
-          env,
-          watcher.repo,
-          result.entries.map((entry) => entry.issue.number),
-        );
-        result.entries = result.entries.filter((entry) => !linked.has(entry.issue.number));
-      } catch (error) {
-        result.failures.push({ repo: watcher.repo, message: `Linked pull request check: ${errorMessage(error)}` });
-        console.error(`[${watcher.repo}] linked pull request check failed: ${errorMessage(error)}`);
-      }
-    }
   } catch (error) {
     result.failures.push({ repo: watcher.repo, message: errorMessage(error) });
     console.error(`[${watcher.repo}] search failed: ${errorMessage(error)}`);
   }
 
   return result;
+}
+
+async function withoutClosingPullRequests(
+  env: Env,
+  repo: string,
+  issues: Issue[],
+  result: CollectResult,
+): Promise<Issue[]> {
+  if (issues.length === 0) return issues;
+
+  try {
+    const linked = await findIssuesWithClosingPullRequests(env, repo, issues.map((issue) => issue.number));
+    return issues.filter((issue) => !linked.has(issue.number));
+  } catch (error) {
+    result.failures.push({ repo, message: `Linked pull request check: ${errorMessage(error)}` });
+    console.error(`[${repo}] linked pull request check failed: ${errorMessage(error)}`);
+    return issues;
+  }
 }
 
 async function deliver(

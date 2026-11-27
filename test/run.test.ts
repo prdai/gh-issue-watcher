@@ -99,7 +99,11 @@ describe("run", () => {
     const test = await seeded();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "https://api.github.com/graphql") {
+          const body = JSON.parse(String(init?.body));
+          return closingPullRequestResponse(body.query, []);
+        }
         if (String(input).startsWith("https://api.github.com/")) {
           return jsonResponse({ total_count: 1, items: [githubItem(makeIssue(9))] });
         }
@@ -144,15 +148,20 @@ describe("run", () => {
   it("drops matched issues that already have a closing pull request", async () => {
     const test = await seeded();
     stubApi({
-      issues: [makeIssue(1, { labels: ["Bug"] }), makeIssue(2, { labels: ["bug"] }), makeIssue(3)],
+      issues: [makeIssue(1, { labels: ["Bug"] }), makeIssue(2, { labels: ["bug"] }), makeIssue(3), makeIssue(4)],
       relevant: true,
       closedBy: [2, 3],
     });
 
     const summary = await run(test.env, now);
 
-    expect(summary).toMatchObject({ issues: 1, failures: 0, emailed: true });
-    expect(summary.hits.map((hit) => hit.number)).toEqual([1]);
+    expect(summary).toMatchObject({ issues: 2, failures: 0, emailed: true });
+    expect(summary.hits.map((hit) => hit.number)).toEqual([1, 4]);
+
+    const aiCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("opencode.ai"));
+    const prompt = JSON.stringify(JSON.parse(String((aiCall?.[1] as RequestInit).body)).messages);
+    expect(prompt).toContain("### 4");
+    expect(prompt).not.toContain("### 3");
   });
 
   it("keeps the digest when the closing pull request check fails", async () => {

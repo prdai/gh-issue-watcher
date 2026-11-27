@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GitHubError, searchIssuesSince } from "../src/github.ts";
-import { githubItem, jsonResponse, makeIssue, testEnv } from "./fakes.ts";
+import { GitHubError, findIssuesWithClosingPullRequests, searchIssuesSince } from "../src/github.ts";
+import { closingPullRequestResponse, githubItem, jsonResponse, makeIssue, testEnv } from "./fakes.ts";
 
 const window = {
   repo: "owner/repo",
@@ -86,5 +86,43 @@ describe("searchIssuesSince", () => {
     const { env } = testEnv();
 
     await expect(searchIssuesSince(env, window)).rejects.toThrow(/unexpected GitHub response/);
+  });
+});
+
+describe("findIssuesWithClosingPullRequests", () => {
+  it("returns only issues with a linked closing pull request", async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body));
+      return closingPullRequestResponse(body.query, [2, 3]);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { env } = testEnv();
+
+    const found = await findIssuesWithClosingPullRequests(env, "owner/repo", [1, 2, 3]);
+
+    expect([...found]).toEqual([2, 3]);
+    const query = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)).query;
+    expect(query).toContain("i0: issue(number: 1)");
+    expect(query).toContain("closedByPullRequestsReferences");
+  });
+
+  it("skips the request when there are no candidates", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { env } = testEnv();
+
+    const found = await findIssuesWithClosingPullRequests(env, "owner/repo", []);
+
+    expect(found.size).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unexpected graphql payload", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({ data: {} })));
+    const { env } = testEnv();
+
+    await expect(findIssuesWithClosingPullRequests(env, "owner/repo", [1])).rejects.toThrow(
+      /unexpected GitHub graphql response/,
+    );
   });
 });

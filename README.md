@@ -103,6 +103,7 @@ The cron schedule is declared in `wrangler.jsonc`. Change `crons` and redeploy t
 - GitHub's issue search returns at most 1000 results per query. A repo producing more than that per hour will be truncated with a note in the digest.
 - On GitHub rate limiting the run aborts without advancing the cursor, so the next run retries the same window.
 - AI failures are fail-closed: the batch is not reported, the error is logged with the repo and issue count, and the window still advances. Failures never trigger or appear in an email.
+- Before label and AI matching, issues with a linked pull request that would close them are skipped, so the digest only lists work nobody has picked up. This is one batched GraphQL query per repo of search results; if it fails, matching continues and the error is logged and returned by `/run`.
 - Email is only deliverable to verified destination addresses until a sending domain is fully onboarded.
 
 ## OpenCode Go client requirements

@@ -3,7 +3,7 @@ import { resolveWatchers, type ResolvedWatcher } from "./config.ts";
 import { renderDigest, type DigestEntry } from "./digest.ts";
 import { sendEmail } from "./email.ts";
 import type { Env } from "./env.ts";
-import { searchIssuesSince, type Issue } from "./github.ts";
+import { searchIssuesSince, findIssuesWithClosingPullRequests, type Issue } from "./github.ts";
 import { windowStart } from "./match.ts";
 import { getCursor, loadConfig, putCursor } from "./state.ts";
 
@@ -74,7 +74,8 @@ async function collect(
     result.searched = true;
 
     const unmatched: Issue[] = [];
-    for (const issue of issues) {
+    const candidates = await withoutClosingPullRequests(env, watcher.repo, issues, result);
+    for (const issue of candidates) {
       const label = matchedLabel(issue, watcher.labels);
       if (label) {
         result.entries.push({ repo: watcher.repo, issue, source: "label", label, reason: null, });
@@ -108,6 +109,24 @@ async function collect(
   }
 
   return result;
+}
+
+async function withoutClosingPullRequests(
+  env: Env,
+  repo: string,
+  issues: Issue[],
+  result: CollectResult,
+): Promise<Issue[]> {
+  if (issues.length === 0) return issues;
+
+  try {
+    const linked = await findIssuesWithClosingPullRequests(env, repo, issues.map((issue) => issue.number));
+    return issues.filter((issue) => !linked.has(issue.number));
+  } catch (error) {
+    result.failures.push({ repo, message: `Linked pull request check: ${errorMessage(error)}` });
+    console.error(`[${repo}] linked pull request check failed: ${errorMessage(error)}`);
+    return issues;
+  }
 }
 
 async function deliver(

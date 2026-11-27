@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { run } from "../src/run.ts";
-import { WATCHER_CONFIG, completion, githubItem, jsonResponse, makeIssue, testEnv, type TestEnv } from "./fakes.ts";
+import { WATCHER_CONFIG, closingPullRequestResponse, completion, githubItem, jsonResponse, makeIssue, testEnv, type TestEnv } from "./fakes.ts";
 import type { Issue } from "../src/github.ts";
 
 const now = new Date("2026-11-22T05:00:00Z");
@@ -18,9 +18,13 @@ async function seeded(overrides: Record<string, unknown> = {}): Promise<TestEnv>
   return test;
 }
 
-function stubApi(options: { issues?: Issue[]; status?: number; relevant?: boolean; error?: string }) {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+function stubApi(options: { issues?: Issue[]; status?: number; relevant?: boolean; error?: string; closedBy?: number[] }) {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
+    if (url === "https://api.github.com/graphql") {
+      const body = JSON.parse(String(init?.body));
+      return closingPullRequestResponse(body.query, options.closedBy ?? []);
+    }
     if (url.startsWith("https://api.github.com/")) {
       if (options.status) {
         return new Response(options.error ?? "nope", {
@@ -95,7 +99,11 @@ describe("run", () => {
     const test = await seeded();
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "https://api.github.com/graphql") {
+          const body = JSON.parse(String(init?.body));
+          return closingPullRequestResponse(body.query, []);
+        }
         if (String(input).startsWith("https://api.github.com/")) {
           return jsonResponse({ total_count: 1, items: [githubItem(makeIssue(9))] });
         }
@@ -135,6 +143,43 @@ describe("run", () => {
     const prompt = JSON.stringify(body.messages);
     expect(prompt).toContain("### 2");
     expect(prompt).not.toContain("### 1");
+  });
+
+  it("drops matched issues that already have a closing pull request", async () => {
+    const test = await seeded();
+    stubApi({
+      issues: [makeIssue(1, { labels: ["Bug"] }), makeIssue(2, { labels: ["bug"] }), makeIssue(3), makeIssue(4)],
+      relevant: true,
+      closedBy: [2, 3],
+    });
+
+    const summary = await run(test.env, now);
+
+    expect(summary).toMatchObject({ issues: 2, failures: 0, emailed: true });
+    expect(summary.hits.map((hit) => hit.number)).toEqual([1, 4]);
+
+    const aiCall = vi.mocked(fetch).mock.calls.find(([input]) => String(input).includes("opencode.ai"));
+    const prompt = JSON.stringify(JSON.parse(String((aiCall?.[1] as RequestInit).body)).messages);
+    expect(prompt).toContain("### 4");
+    expect(prompt).not.toContain("### 3");
+  });
+
+  it("keeps the digest when the closing pull request check fails", async () => {
+    const test = await seeded();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "https://api.github.com/graphql") {
+          return new Response("boom", { status: 500 });
+        }
+        return jsonResponse({ total_count: 1, items: [githubItem(makeIssue(1, { labels: ["bug"] }))] });
+      }),
+    );
+
+    const summary = await run(test.env, now);
+
+    expect(summary).toMatchObject({ issues: 1, failures: 1, emailed: true });
+    expect(summary.errors[0]?.message).toContain("Linked pull request check");
   });
 
   it("advances the shared cursor when only some watchers succeed", async () => {
@@ -184,7 +229,11 @@ describe("run", () => {
     );
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "https://api.github.com/graphql") {
+          const body = JSON.parse(String(init?.body));
+          return closingPullRequestResponse(body.query, []);
+        }
         const q = new URL(String(input)).searchParams.get("q") ?? "";
         const number = q.startsWith("repo:owner/one") ? 1 : 2;
         return jsonResponse({

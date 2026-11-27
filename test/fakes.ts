@@ -91,6 +91,16 @@ export function completion(content: unknown): Response {
   });
 }
 
+export function closingPullRequestResponse(query: string, closed: number[]): Response {
+  const repository: Record<string, unknown> = {};
+  for (const match of query.matchAll(/i(\d+): issue\(number: (\d+)\)/g)) {
+    repository[`i${match[1]}`] = {
+      closedByPullRequestsReferences: { totalCount: closed.includes(Number(match[2])) ? 1 : 0 },
+    };
+  }
+  return jsonResponse({ data: { repository } });
+}
+
 export const WATCHER_CONFIG = {
   defaults: {
     ai: { enabled: true, model: "deepseek-v4.1-flash" },

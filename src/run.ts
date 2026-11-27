@@ -3,7 +3,7 @@ import { resolveWatchers, type ResolvedWatcher } from "./config.ts";
 import { renderDigest, type DigestEntry } from "./digest.ts";
 import { sendEmail } from "./email.ts";
 import type { Env } from "./env.ts";
-import { searchIssuesSince, type Issue } from "./github.ts";
+import { searchIssuesSince, findIssuesWithClosingPullRequests, type Issue } from "./github.ts";
 import { windowStart } from "./match.ts";
 import { getCursor, loadConfig, putCursor } from "./state.ts";
 
@@ -100,6 +100,20 @@ async function collect(
       } catch (error) {
         result.failures.push({ repo: watcher.repo, message: `AI request for ${unmatched.length} issues: ${errorMessage(error)}` });
         console.error(`[${watcher.repo}] AI request for ${unmatched.length} issues failed: ${errorMessage(error)}`);
+      }
+    }
+
+    if (result.entries.length > 0) {
+      try {
+        const linked = await findIssuesWithClosingPullRequests(
+          env,
+          watcher.repo,
+          result.entries.map((entry) => entry.issue.number),
+        );
+        result.entries = result.entries.filter((entry) => !linked.has(entry.issue.number));
+      } catch (error) {
+        result.failures.push({ repo: watcher.repo, message: `Linked pull request check: ${errorMessage(error)}` });
+        console.error(`[${watcher.repo}] linked pull request check failed: ${errorMessage(error)}`);
       }
     }
   } catch (error) {
